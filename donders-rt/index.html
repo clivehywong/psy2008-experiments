@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Donders Experiment — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         padding: 20px; user-select: none; -webkit-user-select: none; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 640px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
+  h1 { font-size: 26px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 20px; margin-bottom: 10px; color: #e94560; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
+  .btn:active { transform: scale(.97); }
+  #stage { width: 100%; max-width: 640px; height: 55vh; min-height: 320px; border-radius: 16px;
+           background: #0f3460; display: flex; align-items: center; justify-content: center;
+           position: relative; overflow: hidden; touch-action: manipulation; cursor: pointer; }
+  #msg { font-size: 22px; color: #ccc; text-align: center; padding: 0 20px; }
+  .dot { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: #e94560;
+         top: 50%; transform: translateY(-50%); }
+  .dot.left { left: 12%; } .dot.center { left: 50%; transform: translate(-50%,-50%); } .dot.right { right: 12%; }
+  .zone { position: absolute; top: 0; bottom: 0; width: 50%; }
+  .zone.left { left: 0; } .zone.right { right: 0; }
+  .zone-label { position: absolute; bottom: 14px; font-size: 15px; color: #7f8c8d; }
+  .bar-wrap { margin: 14px auto; max-width: 460px; text-align: left; }
+  .bar-label { font-size: 14px; margin-bottom: 4px; }
+  .bar { height: 34px; border-radius: 6px; color: #fff; font-weight: bold; display: flex;
+         align-items: center; padding-left: 10px; min-width: 60px; }
+  .trials { font-size: 14px; color: #aab; margin-top: 12px; }
+  .big { font-size: 40px; color: #e94560; font-weight: bold; margin: 8px 0; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="card" id="intro">
+  <h1>The Donders Experiment (1868)</h1>
+  <p>Can you measure how long a <b>decision</b> takes — in your own head?</p>
+  <p><b>Round 1 — Simple RT:</b> a dot appears in the centre. Tap the screen (or press any key) as fast as you can. 5 trials.</p>
+  <p><b>Round 2 — Choice RT:</b> the dot appears on the LEFT or RIGHT. Tap that side of the screen (or press <b>A</b> = left, <b>L</b> = right). 5 trials.</p>
+  <p>⚠️ Don't respond before the dot appears — premature responses don't count!</p>
+  <button class="btn" id="startBtn">Start Round 1</button>
+</div>
+
+<div id="stage" class="hidden">
+  <div id="msg">Get ready…</div>
+</div>
+
+<div class="card hidden" id="between">
+  <h2>Round 1 done!</h2>
+  <p id="r1summary"></p>
+  <p>Now <b>Round 2 — Choice RT</b>: tap the <b>same side</b> as the dot (or press A / L). You now have to <b>decide</b> before you respond.</p>
+  <button class="btn" id="startBtn2">Start Round 2</button>
+</div>
+
+<div class="card hidden" id="results">
+  <h2>Your results</h2>
+  <div class="bar-wrap">
+    <div class="bar-label">Simple RT (detect + respond)</div>
+    <div class="bar" id="barS" style="background:#0f3460;"></div>
+  </div>
+  <div class="bar-wrap">
+    <div class="bar-label">Choice RT (detect + <b>decide</b> + respond)</div>
+    <div class="bar" id="barC" style="background:#e94560;"></div>
+  </div>
+  <p>Your decision time (Choice − Simple):</p>
+  <div class="big" id="diff"></div>
+  <p id="interp"></p>
+  <div class="trials" id="trialList"></div>
+  <button class="btn" id="againBtn">Run again</button>
+</div>
+
+<script>
+const N = 5;
+const stage = document.getElementById('stage');
+const msg = document.getElementById('msg');
+let round = 0, trial = 0, results = {simple: [], choice: []};
+let stimTime = 0, timeout = null, waiting = false, stimSide = 'center';
+
+function show(el) { el.classList.remove('hidden'); }
+function hide(el) { el.classList.add('hidden'); }
+
+function startRound(r) {
+  round = r; trial = 0;
+  hide(document.getElementById('intro'));
+  hide(document.getElementById('between'));
+  show(stage);
+  nextTrial();
+}
+
+function nextTrial() {
+  if (trial >= N) { endRound(); return; }
+  trial++;
+  msg.textContent = (round === 1 ? 'Simple RT' : 'Choice RT') + ' — trial ' + trial + '/' + N + ' — wait for the dot…';
+  waiting = true;
+  clearTimeout(timeout);
+  timeout = setTimeout(showStim, 1500 + Math.random() * 2000);
+}
+
+function showStim() {
+  waiting = false;
+  document.querySelectorAll('.dot,.zone,.zone-label').forEach(e => e.remove());
+  msg.textContent = '';
+  const dot = document.createElement('div');
+  dot.className = 'dot';
+  if (round === 1) {
+    dot.classList.add('center');
+    stimSide = 'center';
+  } else {
+    stimSide = Math.random() < 0.5 ? 'left' : 'right';
+    dot.classList.add(stimSide);
+    for (const side of ['left', 'right']) {
+      const z = document.createElement('div');
+      z.className = 'zone ' + side; z.dataset.side = side;
+      stage.appendChild(z);
+      const lab = document.createElement('div');
+      lab.className = 'zone-label';
+      lab.style[side] = '18px';
+      lab.textContent = side.toUpperCase() + (side === 'left' ? ' (A)' : ' (L)');
+      stage.appendChild(lab);
+    }
+  }
+  stage.appendChild(dot);
+  stimTime = performance.now();
+}
+
+function respond(side) {
+  if (round === 0) return;
+  if (waiting) { // too early
+    clearTimeout(timeout);
+    waiting = false;
+    msg.textContent = 'Too soon! Wait for the dot. Trial repeats…';
+    setTimeout(nextTrial, 1200);
+    return;
+  }
+  if (!stimTime) return;
+  const rt = Math.round(performance.now() - stimTime);
+  stimTime = 0;
+  document.querySelectorAll('.dot,.zone,.zone-label').forEach(e => e.remove());
+  if (round === 2 && side !== stimSide) {
+    msg.textContent = 'Wrong side! Trial repeats…';
+    setTimeout(nextTrial, 1200);
+    return;
+  }
+  results[round === 1 ? 'simple' : 'choice'].push(rt);
+  msg.textContent = rt + ' ms';
+  setTimeout(nextTrial, 900);
+}
+
+stage.addEventListener('pointerdown', e => {
+  const z = e.target.closest('.zone');
+  respond(round === 2 ? (z ? z.dataset.side : (e.clientX < stage.getBoundingClientRect().left + stage.offsetWidth / 2 ? 'left' : 'right')) : 'center');
+});
+document.addEventListener('keydown', e => {
+  if (round === 0 || stage.classList.contains('hidden')) return;
+  if (round === 2) {
+    if (e.key.toLowerCase() === 'a') respond('left');
+    else if (e.key.toLowerCase() === 'l') respond('right');
+  } else respond('center');
+});
+
+function mean(a) { return Math.round(a.reduce((x, y) => x + y, 0) / a.length); }
+
+function endRound() {
+  hide(stage);
+  if (round === 1) {
+    document.getElementById('r1summary').textContent =
+      'Your mean Simple RT: ' + mean(results.simple) + ' ms (' + results.simple.join(', ') + ')';
+    show(document.getElementById('between'));
+  } else {
+    const s = mean(results.simple), c = mean(results.choice), d = c - s;
+    const scale = Math.max(c, 300);
+    const barS = document.getElementById('barS'), barC = document.getElementById('barC');
+    barS.style.width = Math.round(s / scale * 100) + '%'; barS.textContent = s + ' ms';
+    barC.style.width = Math.round(c / scale * 100) + '%'; barC.textContent = c + ' ms';
+    document.getElementById('diff').textContent = d + ' ms';
+    document.getElementById('interp').textContent =
+      d > 0
+      ? 'Donders found ~100 ms in 1868. Your sensory and motor stages were (nearly) identical in both rounds — the extra time IS your decision. You just measured an invisible mental process.'
+      : 'Interesting — your choice RT was not slower. Possible reasons: practice, anticipation, or too few trials. Donders’s subtraction assumes stages don’t interact ("pure insertion") — your data show why that assumption is debated!';
+    document.getElementById('trialList').textContent =
+      'Simple: ' + results.simple.join(', ') + ' ms · Choice: ' + results.choice.join(', ') + ' ms';
+    show(document.getElementById('results'));
+  }
+  round = 0;
+}
+
+document.getElementById('startBtn').onclick = () => startRound(1);
+document.getElementById('startBtn2').onclick = () => startRound(2);
+document.getElementById('againBtn').onclick = () => {
+  results = {simple: [], choice: []};
+  hide(document.getElementById('results'));
+  show(document.getElementById('intro'));
+};
+</script>
+</body>
+</html>
