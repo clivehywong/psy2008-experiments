@@ -9,5 +9,6 @@ Experiments are organised by lecture folder (`L01/`, `L02/`, …).
 | Lecture | Experiment | Path |
 |---|---|---|
 | L1 Introduction | The Donders Experiment (1868) — simple vs choice reaction time | `L01/donders-rt/` |
+| L2 Perception | Spot the Change — flicker-paradigm change detection | `L02/change-detection/` |
 
 Planned: realtime class dashboard (server-hosted aggregation) as a future enhancement.

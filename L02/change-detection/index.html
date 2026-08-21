@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spot the Change — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         padding: 20px; user-select: none; -webkit-user-select: none; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 640px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 20px; margin-bottom: 10px; color: #e94560; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
+  .btn:active { transform: scale(.97); }
+  #stage { width: 100%; max-width: 640px; height: 52vh; min-height: 320px; border-radius: 16px;
+           position: relative; overflow: hidden; background: #0f3460; touch-action: manipulation; }
+  #stage.mask { background: #666; }
+  #stage img, .shape { position: absolute; }
+  #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
+  .hidden { display: none !important; }
+  .big { font-size: 36px; color: #e94560; font-weight: bold; margin: 8px 0; }
+  .trials { font-size: 14px; color: #aab; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<div class="card" id="intro">
+  <h1>Spot the Change</h1>
+  <p>A scene will flicker — the picture alternates with a brief grey screen. <b>One thing keeps changing.</b></p>
+  <p>Tap the screen the moment you spot what changes. There are 4 scenes. You have 30 seconds per scene.</p>
+  <p>⚠️ Don't tap randomly — a wrong tap ends the round.</p>
+  <button class="btn" id="startBtn">Start</button>
+</div>
+
+<div id="stage" class="hidden"></div>
+<div id="status"></div>
+
+<div class="card hidden" id="results">
+  <h2>Your results</h2>
+  <div class="big" id="score"></div>
+  <p id="interp"></p>
+  <div class="trials" id="trialList"></div>
+  <p style="margin-top:16px"><b>Why was that hard?</b> The grey flash wipes out the motion signal that normally shouts
+  "look here!". Without it, you can only find the change by checking one object at a time — with ATTENTION.
+  That's change blindness: seeing is not a photograph; it's a bet placed on whatever you happened to attend.
+  Next lecture: the gatekeeper.</p>
+  <button class="btn" id="againBtn">Run again</button>
+</div>
+
+<script>
+const COLORS = ['#e94560','#f5a623','#50c878','#4a90d9','#b667d9','#e8e8e8','#d9534f','#5bc0de'];
+const N_SHAPES = 7, N_ROUNDS = 4, MAX_MS = 30000;
+const stage = document.getElementById('stage'), status = document.getElementById('status');
+let round = 0, results = [], flickerTimer = null, roundTimer = null, startTime = 0, showing = null, solved = false;
+
+function makeScene(seedBase) {
+  let s = seedBase;
+  const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  const shapes = [];
+  for (let i = 0; i < N_SHAPES; i++) {
+    shapes.push({
+      x: 8 + rnd() * 76, y: 8 + rnd() * 72, w: 8 + rnd() * 10,
+      c: COLORS[Math.floor(rnd() * COLORS.length)],
+      round: rnd() > 0.5
+    });
+  }
+  return shapes;
+}
+
+function render(shapes, changeIdx, changed) {
+  stage.innerHTML = '';
+  shapes.forEach((sh, i) => {
+    const el = document.createElement('div');
+    el.className = 'shape';
+    let color = sh.c, hide = false;
+    if (changed && i === changeIdx) {
+      if (round % 2 === 0) color = COLORS[(COLORS.indexOf(sh.c) + 3) % COLORS.length];
+      else hide = true; // change type: disappearance on odd rounds
+    }
+    if (hide) return;
+    el.style.cssText = `left:${sh.x}%;top:${sh.y}%;width:${sh.w}%;aspect-ratio:1;background:${color};` +
+      (sh.round ? 'border-radius:50%;' : 'border-radius:2px;');
+    stage.appendChild(el);
+  });
+}
+
+function startRound() {
+  if (round >= N_ROUNDS) return finish();
+  solved = false;
+  const shapes = makeScene(1234 + round * 777);
+  const changeIdx = Math.floor((round * 2.7 + 1) % N_SHAPES);
+  let showChanged = false;
+  stage.classList.remove('hidden');
+  status.textContent = `Scene ${round + 1}/${N_ROUNDS} — tap when you spot the change`;
+  startTime = performance.now();
+  const tick = () => {
+    if (showing === 'scene') {
+      stage.classList.add('mask'); stage.innerHTML = ''; showing = 'mask';
+      flickerTimer = setTimeout(tick, 120);
+    } else {
+      stage.classList.remove('mask');
+      showChanged = !showChanged;
+      render(shapes, changeIdx, showChanged);
+      showing = 'scene';
+      flickerTimer = setTimeout(tick, 650);
+    }
+  };
+  tick();
+  roundTimer = setTimeout(() => endRound(false), MAX_MS);
+  stage.onpointerdown = () => endRound(true);
+  stage.dataset.change = changeIdx;
+}
+
+function endRound(found) {
+  if (solved) return;
+  solved = true;
+  clearTimeout(flickerTimer);
+  clearTimeout(roundTimer);
+  stage.onpointerdown = null;
+  const rt = Math.round(performance.now() - startTime);
+  results.push(found && rt <= MAX_MS ? rt : null);
+  status.textContent = found ? `Found in ${(rt/1000).toFixed(1)} s ✓` : 'Time up — the change is revealed now.';
+  round++;
+  setTimeout(startRound, 1600);
+}
+
+function finish() {
+  stage.classList.add('hidden'); stage.innerHTML = '';
+  status.textContent = '';
+  const found = results.filter(r => r !== null);
+  document.getElementById('score').textContent = `${found.length}/${N_ROUNDS} found` +
+    (found.length ? ` · mean ${(found.reduce((a,b)=>a+b,0)/found.length/1000).toFixed(1)} s` : '');
+  document.getElementById('interp').textContent =
+    found.length === N_ROUNDS ? 'Sharp! But notice how LONG it took — without a motion cue, attention must search object by object.'
+    : 'Completely normal — without the motion cue, your attention has to check objects one at a time, and it often loses.';
+  document.getElementById('trialList').textContent =
+    'Scenes: ' + results.map(r => r ? (r/1000).toFixed(1) + ' s' : 'missed').join(' · ');
+  document.getElementById('results').classList.remove('hidden');
+}
+
+document.getElementById('startBtn').onclick = () => {
+  document.getElementById('intro').classList.add('hidden');
+  round = 0; results = []; startRound();
+};
+document.getElementById('againBtn').onclick = () => location.reload();
+</script>
+</body>
+</html>
