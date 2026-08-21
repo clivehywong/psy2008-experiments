@@ -4,8 +4,10 @@ Interactive browser experiments for PSY2008 lectures (EdUHK, 2026–27). Static 
 
 **Live site:** https://clivehywong.github.io/psy2008-experiments/
 
+Experiments are organised by lecture folder (`L01/`, `L02/`, …).
+
 | Lecture | Experiment | Path |
 |---|---|---|
-| L1 Introduction | The Donders Experiment (1868) — simple vs choice reaction time | `donders-rt/` |
+| L1 Introduction | The Donders Experiment (1868) — simple vs choice reaction time | `L01/donders-rt/` |
 
 Planned: realtime class dashboard (server-hosted aggregation) as a future enhancement.
