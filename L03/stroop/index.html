@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stroop Task — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         padding: 20px; user-select: none; -webkit-user-select: none; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 640px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
+  .btn:active { transform: scale(.97); }
+  #word { font-size: 72px; font-weight: bold; min-height: 110px; display: flex; align-items: center;
+          justify-content: center; letter-spacing: 2px; }
+  #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+  .key { padding: 18px; font-size: 20px; font-weight: bold; border: 3px solid; border-radius: 10px;
+         background: #16213e; cursor: pointer; color: #eee; }
+  .key:active { transform: scale(.96); }
+  #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
+  .hidden { display: none !important; }
+  .big { font-size: 34px; color: #e94560; font-weight: bold; margin: 8px 0; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; }
+  td, th { padding: 8px 18px; border: 1px solid #334; }
+  th { color: #e94560; }
+</style>
+</head>
+<body>
+<div class="card" id="intro">
+  <h1>The Stroop Task</h1>
+  <p>You will see colour words one at a time. Your job: tap the button matching the <b>INK COLOUR</b> —
+     ignore what the word says. Answer as fast as you can without making errors.</p>
+  <p>24 trials · about 2 minutes · works on phone or laptop.</p>
+  <button class="btn" onclick="start()">Start</button>
+</div>
+
+<div class="card hidden" id="task">
+  <div id="word">&nbsp;</div>
+  <div id="keys"></div>
+  <div id="status"></div>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="effect"></div>
+  <table>
+    <tr><th></th><th>Mean RT</th><th>Accuracy</th></tr>
+    <tr><td>Matching (word = ink)</td><td id="rtC"></td><td id="acC"></td></tr>
+    <tr><td>Conflicting (word ≠ ink)</td><td id="rtI"></td><td id="acI"></td></tr>
+  </table>
+  <p id="verdict"></p>
+  <p style="color:#aab; font-size:14px">PSY2008 L03 · Why is the conflicting row slower? Bring your answer to the tutorial.</p>
+</div>
+
+<script>
+const COLORS = [ ["RED","#e74c3c"], ["BLUE","#3498db"], ["GREEN","#2ecc71"], ["YELLOW","#f1c40f"] ];
+const N = 24;
+let trials = [], i = 0, t0 = 0, data = [];
+
+function buildTrials() {
+  const t = [];
+  while (t.length < N) {
+    const w = COLORS[Math.floor(Math.random()*4)];
+    let ink = COLORS[Math.floor(Math.random()*4)];
+    // balance: half congruent
+    if (t.filter(x=>x.congruent).length < N/2 && Math.random() < 0.5) ink = w;
+    if (t.length && t[t.length-1].word === w[0] && t[t.length-1].ink === ink[0]) continue;
+    t.push({ word: w[0], inkName: ink[0], inkHex: ink[1], congruent: w[0]===ink[0] });
+  }
+  return t;
+}
+
+function start() {
+  document.getElementById('intro').classList.add('hidden');
+  document.getElementById('task').classList.remove('hidden');
+  const keys = document.getElementById('keys');
+  COLORS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'key'; b.style.borderColor = c[1]; b.textContent = c[0];
+    b.onclick = () => answer(c[0]);
+    keys.appendChild(b);
+  });
+  trials = buildTrials(); i = 0; data = [];
+  next();
+}
+
+function next() {
+  if (i >= trials.length) return finish();
+  const tr = trials[i];
+  const w = document.getElementById('word');
+  w.textContent = tr.word; w.style.color = tr.inkHex;
+  document.getElementById('status').textContent = `Trial ${i+1} / ${N}`;
+  t0 = performance.now();
+}
+
+function answer(colorName) {
+  const tr = trials[i];
+  const rt = performance.now() - t0;
+  data.push({ congruent: tr.congruent, correct: colorName === tr.inkName, rt });
+  i++;
+  next();
+}
+
+function finish() {
+  document.getElementById('task').classList.add('hidden');
+  document.getElementById('results').classList.remove('hidden');
+  const C = data.filter(d => d.congruent), I = data.filter(d => !d.congruent);
+  const mrt = a => Math.round(a.filter(d=>d.correct).reduce((s,d)=>s+d.rt,0) / Math.max(1,a.filter(d=>d.correct).length));
+  const acc = a => Math.round(100*a.filter(d=>d.correct).length / Math.max(1,a.length)) + '%';
+  const rtC = mrt(C), rtI = mrt(I);
+  document.getElementById('rtC').textContent = rtC + ' ms';
+  document.getElementById('rtI').textContent = rtI + ' ms';
+  document.getElementById('acC').textContent = acc(C);
+  document.getElementById('acI').textContent = acc(I);
+  const diff = rtI - rtC;
+  document.getElementById('effect').textContent = `Your Stroop effect: +${diff} ms`;
+  document.getElementById('verdict').textContent =
+    diff > 0 ? 'Classic Stroop interference — reading ran automatically and fought your colour naming.' :
+               'No interference for you — unusually strong inhibitory control (or very slow reading!).';
+}
+</script>
+</body>
+</html>

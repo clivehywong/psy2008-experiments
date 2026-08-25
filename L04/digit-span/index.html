@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digit Span — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         padding: 20px; user-select: none; -webkit-user-select: none; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 640px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
+  #digits { font-size: 64px; font-weight: bold; letter-spacing: 12px; min-height: 90px;
+            display: flex; align-items: center; justify-content: center; color: #f1c40f; }
+  #answer { font-size: 28px; letter-spacing: 6px; padding: 10px; width: 90%; background: #0f3460;
+            color: #f1c40f; border: 2px solid #e94560; border-radius: 10px; text-align: center; }
+  #pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  .key { padding: 14px; font-size: 22px; font-weight: bold; border-radius: 10px; border: none;
+         background: #0f3460; color: #eee; cursor: pointer; }
+  .key:active { transform: scale(.95); }
+  #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
+  .hidden { display: none !important; }
+  .big { font-size: 40px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+<div class="card" id="intro">
+  <h1>Digit Span</h1>
+  <p>Digits appear one by one (1 per second). When they vanish, type them back <b>in order</b>.
+     Strings get longer until you break. Two chances per length.</p>
+  <p>About 3 minutes · phone or laptop.</p>
+  <button class="btn" onclick="start()">Start</button>
+</div>
+
+<div class="card hidden" id="task">
+  <div id="digits">&nbsp;</div>
+  <input id="answer" class="hidden" inputmode="numeric" autocomplete="off" placeholder="type the digits">
+  <div id="pad" class="hidden"></div>
+  <div id="status"></div>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="span"></div>
+  <p id="detail"></p>
+  <p style="color:#aab; font-size:14px">PSY2008 L04 · Was your limit about ITEMS or CHUNKS? Bring your answer to the tutorial.</p>
+</div>
+
+<script>
+let len = 4, attempts = 0, maxSpan = 3, log = [], seq = [], idx = 0;
+const el = id => document.getElementById(id);
+
+function start() {
+  el('intro').classList.add('hidden');
+  el('task').classList.remove('hidden');
+  const pad = el('pad');
+  for (let n = 1; n <= 9; n++) {
+    const b = document.createElement('button');
+    b.className = 'key'; b.textContent = n;
+    b.onclick = () => { el('answer').value += n; };
+    pad.appendChild(b);
+  }
+  const zero = document.createElement('button');
+  zero.className = 'key'; zero.textContent = '0';
+  zero.onclick = () => { el('answer').value += '0'; };
+  const del = document.createElement('button');
+  del.className = 'key'; del.textContent = '⌫';
+  del.onclick = () => { el('answer').value = el('answer').value.slice(0, -1); };
+  const go = document.createElement('button');
+  go.className = 'key'; go.style.background = '#e94560'; go.textContent = '✓';
+  go.onclick = submit;
+  pad.appendChild(zero); pad.appendChild(del); pad.appendChild(go);
+  el('answer').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+  nextRound();
+}
+
+function nextRound() {
+  seq = Array.from({length: len}, () => Math.floor(Math.random()*10));
+  idx = 0; el('answer').classList.add('hidden'); el('pad').classList.add('hidden');
+  el('status').textContent = `Length ${len} — get ready…`;
+  el('digits').textContent = '•';
+  setTimeout(showNext, 900);
+}
+
+function showNext() {
+  if (idx >= seq.length) {
+    el('digits').innerHTML = '&nbsp;';
+    el('status').textContent = 'Type the digits in order';
+    el('answer').value = '';
+    el('answer').classList.remove('hidden'); el('pad').classList.remove('hidden');
+    el('answer').focus();
+    return;
+  }
+  el('digits').textContent = seq[idx++];
+  el('status').textContent = `Length ${len}`;
+  setTimeout(showNext, 1000);
+}
+
+function submit() {
+  const ans = el('answer').value.trim();
+  const correct = ans === seq.join('');
+  log.push({ len, correct });
+  if (correct) { maxSpan = len; len++; attempts = 0; nextRound(); }
+  else {
+    attempts++;
+    if (attempts >= 2 || len <= 4) finish();
+    else { el('status').textContent = 'One more try at this length…'; setTimeout(nextRound, 800); }
+  }
+}
+
+function finish() {
+  el('task').classList.add('hidden');
+  el('results').classList.remove('hidden');
+  el('span').textContent = `Your digit span: ${maxSpan}`;
+  el('detail').textContent = `You reliably recalled strings of ${maxSpan} digits. ` +
+    (maxSpan <= 5 ? 'Around the modern ~4-item estimate — Miller\'s 7±2 was about chunks, not items.' :
+     maxSpan <= 7 ? 'Classic Miller territory (7±2) — were you chunking?' :
+     'Above 7 — you were almost certainly chunking. What groups did you use?');
+}
+</script>
+</body>
+</html>
