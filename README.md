@@ -10,5 +10,7 @@ Experiments are organised by lecture folder (`L01/`, `L02/`, …).
 |---|---|---|
 | L1 Introduction | The Donders Experiment (1868) — simple vs choice reaction time | `L01/donders-rt/` |
 | L2 Perception | Spot the Change — flicker-paradigm change detection | `L02/change-detection/` |
+| L2 Perception | Apparent Motion — sequential blinks become a moving light | `L02/apparent-motion/` |
+| L2 Perception | Structure from Motion — a flat cloud of dots spins into a 3D ring | `L02/structure-from-motion/` |
 
 Planned: realtime class dashboard (server-hosted aggregation) as a future enhancement.

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sequential Blink Animation</title>
+<style>
+  body {
+    font-family: sans-serif;
+    background: #222;
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  #stage {
+    width: 800px;
+    height: 400px;
+    background: #111;
+    border: 1px solid #444;
+    border-radius: 8px;
+    position: relative;
+  }
+  .circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #333;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .circle.on {
+    background: #4fc3f7;
+    box-shadow: 0 0 20px #4fc3f7;
+  }
+  #controls {
+    margin-top: 16px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+  label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div id="controls">
+  <label>
+    Number of circles
+    <input type="range" id="count" min="2" max="10" step="1" value="5">
+    <span id="countVal">5</span>
+  </label>
+  <label>
+    Blink duration (ms)
+    <input type="range" id="blink" min="50" max="2000" step="10" value="300">
+    <span id="blinkVal">300</span>
+  </label>
+  <label>
+    Blank duration (ms)
+    <input type="range" id="blank" min="0" max="2000" step="10" value="200">
+    <span id="blankVal">200</span>
+  </label>
+</div>
+
+<script>
+  const stage = document.getElementById('stage');
+  const countInput = document.getElementById('count');
+  const blinkInput = document.getElementById('blink');
+  const blankInput = document.getElementById('blank');
+  const countVal = document.getElementById('countVal');
+  const blinkVal = document.getElementById('blinkVal');
+  const blankVal = document.getElementById('blankVal');
+
+  const getBlink = () => +blinkInput.value;
+  const getBlank = () => +blankInput.value;
+
+  let circles = [];
+  let seq = [];
+  let pos = 0;
+  let runId = 0; // invalidate pending timers when circle count changes
+
+  function build(n) {
+    runId++;
+    stage.innerHTML = '';
+    circles = [];
+    seq = [];
+    pos = 0;
+
+    // Create n circles: vertically centered, evenly distributed horizontally
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('div');
+      c.className = 'circle';
+      c.style.left = ((i + 1) / (n + 1) * 100) + '%';
+      stage.appendChild(c);
+      circles.push(c);
+    }
+
+    // Sequence: left→right, right→left, repeat (no double-blink at ends)
+    for (let i = 0; i < n; i++) seq.push(i);
+    for (let i = n - 2; i > 0; i--) seq.push(i);
+
+    step();
+  }
+
+  function step() {
+    const id = runId;
+    circles[seq[pos]].classList.add('on');
+    setTimeout(() => {
+      if (id !== runId) return;
+      circles[seq[pos]].classList.remove('on');
+      pos = (pos + 1) % seq.length;
+      setTimeout(() => { if (id === runId) step(); }, getBlank());
+    }, getBlink());
+  }
+
+  countInput.addEventListener('input', () => {
+    countVal.textContent = countInput.value;
+    build(+countInput.value);
+  });
+  blinkInput.addEventListener('input', () => blinkVal.textContent = blinkInput.value);
+  blankInput.addEventListener('input', () => blankVal.textContent = blankInput.value);
+
+  build(+countInput.value);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>3D Rotating Orbit Simulation</title>
+<style>
+  body {
+    font-family: sans-serif;
+    background: #222;
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  #stage {
+    width: 600px;
+    height: 600px;
+    background: #111;
+    border: 1px solid #444;
+    border-radius: 8px;
+  }
+  #controls {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: center;
+    justify-content: center;
+    max-width: 700px;
+  }
+  label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stage" width="600" height="600"></canvas>
+
+<div id="controls">
+  <label>
+    Number of spots
+    <input type="range" id="count" min="1" max="200" step="1" value="40">
+    <span id="countVal">40</span>
+  </label>
+  <label>
+    Spot size (px)
+    <input type="range" id="size" min="1" max="30" step="1" value="6">
+    <span id="sizeVal">6</span>
+  </label>
+  <label>
+    Rotation speed
+    <input type="range" id="speed" min="0" max="5" step="0.1" value="1">
+    <span id="speedVal">1.0</span>
+  </label>
+  <label>
+    Tilt (deg)
+    <input type="range" id="tilt" min="0" max="90" step="1" value="25">
+    <span id="tiltVal">25</span>
+  </label>
+</div>
+
+<script>
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CX = W / 2, CY = H / 2;
+
+  // Orbit radii band (orbit itself is never drawn — fully transparent)
+  const R_INNER = 150, R_OUTER = 220;
+  const FOCAL = 800; // perspective focal length
+
+  const countInput = document.getElementById('count');
+  const sizeInput = document.getElementById('size');
+  const speedInput = document.getElementById('speed');
+  const tiltInput = document.getElementById('tilt');
+  const countVal = document.getElementById('countVal');
+  const sizeVal = document.getElementById('sizeVal');
+  const speedVal = document.getElementById('speedVal');
+  const tiltVal = document.getElementById('tiltVal');
+
+  let spots = []; // { angle, radius } — positions on the ring plane
+  let rotation = 0; // rotation around the vertical (Y) axis
+
+  function randomSpot() {
+    return {
+      angle: Math.random() * Math.PI * 2,
+      radius: R_INNER + Math.random() * (R_OUTER - R_INNER)
+    };
+  }
+
+  function setCount(n) {
+    while (spots.length < n) spots.push(randomSpot());
+    while (spots.length > n) spots.pop();
+  }
+
+  countInput.addEventListener('input', () => {
+    countVal.textContent = countInput.value;
+    setCount(+countInput.value);
+  });
+  sizeInput.addEventListener('input', () => sizeVal.textContent = sizeInput.value);
+  speedInput.addEventListener('input', () => speedVal.textContent = (+speedInput.value).toFixed(1));
+  tiltInput.addEventListener('input', () => tiltVal.textContent = tiltInput.value);
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    rotation += 0.005 * +speedInput.value;
+
+    const size = +sizeInput.value;
+    const tilt = +tiltInput.value * Math.PI / 180;
+    const sinT = Math.sin(tilt), cosT = Math.cos(tilt);
+
+    // Project each spot: rotate around Y axis, then tilt ring plane around X axis
+    const projected = spots.map(s => {
+      const a = s.angle + rotation;
+      const x = Math.cos(a) * s.radius;
+      const z = Math.sin(a) * s.radius;
+      const y = z * sinT;        // tilt: lift far/near side vertically
+      const z2 = z * cosT;       // remaining depth
+      const scale = FOCAL / (FOCAL + z2);
+      return {
+        sx: CX + x * scale,
+        sy: CY + y * scale,
+        r: size * scale,
+        depth: z2
+      };
+    });
+
+    // Painter's algorithm: draw far spots first
+    projected.sort((a, b) => b.depth - a.depth);
+
+    for (const p of projected) {
+      // Fade far spots slightly for depth cue
+      const alpha = 0.4 + 0.6 * (1 - (p.depth + R_OUTER) / (2 * R_OUTER));
+      ctx.fillStyle = `rgba(79, 195, 247, ${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  setCount(+countInput.value);
+  draw();
+</script>
+
+</body>
+</html>
