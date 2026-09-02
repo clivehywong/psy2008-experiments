@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ames Room &amp; The Ambiguous Retinal Image — PSY2008 L2</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #111; color: #eee; }
+  #canvas-container { position: absolute; inset: 0; }
+  #panel {
+    position: absolute; top: 16px; left: 16px; width: 320px;
+    background: rgba(20, 24, 36, 0.92); padding: 18px; border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(6px);
+    font-size: 14px; line-height: 1.4;
+  }
+  #panel h1 { font-size: 17px; margin: 0 0 10px; color: #e94560; }
+  #panel h2 { font-size: 13px; margin: 16px 0 8px; color: #8aa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  #panel label { display: block; margin: 10px 0 4px; color: #ccd; }
+  #panel input[type="range"] { width: 100%; accent-color: #e94560; }
+  #panel button {
+    width: 100%; margin-top: 10px; padding: 10px; border: none; border-radius: 8px;
+    background: #0f3460; color: #fff; font-size: 14px; cursor: pointer; transition: background 0.15s;
+  }
+  #panel button:hover { background: #e94560; }
+  #panel button.active { background: #e94560; }
+  #panel .row { display: flex; gap: 8px; }
+  #panel .row button { flex: 1; }
+  #panel .value { float: right; color: #e94560; font-weight: 600; }
+  #panel .note { color: #9ab; font-size: 12px; margin-top: 8px; line-height: 1.5; }
+  #readout {
+    position: absolute; bottom: 16px; left: 16px; right: 16px; pointer-events: none;
+    display: flex; justify-content: center; gap: 20px;
+  }
+  .badge {
+    background: rgba(20, 24, 36, 0.9); padding: 10px 18px; border-radius: 10px;
+    color: #eee; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  .badge b { color: #e94560; }
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<div id="panel">
+  <h1>Perception Demo</h1>
+
+  <div class="row">
+    <button id="btn-ames" class="active">Ames Room</button>
+    <button id="btn-oneimage">One Image</button>
+  </div>
+
+  <h2>Scene controls</h2>
+  <div class="row">
+    <button id="btn-peephole" class="active">Peephole</button>
+    <button id="btn-orbit">Free orbit</button>
+  </div>
+  <button id="btn-true">Show true shape</button>
+
+  <div id="ames-controls">
+    <label>Figure position <span id="pos-val" class="value">Left</span></label>
+    <input type="range" id="pos-slider" min="0" max="100" value="0">
+  </div>
+
+  <div id="oneimage-controls" style="display:none;">
+    <label>Object B distance <span id="dist-val" class="value">6.0 m</span></label>
+    <input type="range" id="dist-slider" min="2" max="10" step="0.1" value="6">
+    <label>Object B size <span id="size-val" class="value">1.5 m</span></label>
+    <input type="range" id="size-slider" min="0.2" max="3" step="0.05" value="1.5">
+  </div>
+
+  <button id="btn-reset">Reset</button>
+
+  <p class="note" id="note-text">
+    The figure looks small on the left and large on the right — but the room itself is distorted.
+    Switch to <b>Free orbit</b> and <b>Show true shape</b> to see why.
+  </p>
+</div>
+
+<div id="readout">
+  <div class="badge" id="badge1"></div>
+  <div class="badge" id="badge2"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ------------------------------------------------------------------
+   Shared setup
+   ------------------------------------------------------------------ */
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x11131a);
+scene.fog = new THREE.Fog(0x11131a, 8, 40);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(4, 8, 6);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
+scene.add(dirLight);
+
+const fillLight = new THREE.PointLight(0xffe0c0, 0.5, 20);
+fillLight.position.set(0, 2.5, -4);
+scene.add(fillLight);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
+let controls;
+
+function makeControls() {
+  if (controls) { controls.dispose(); controls = null; }
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+}
+
+/* ------------------------------------------------------------------
+   Helpers: textures and labels
+   ------------------------------------------------------------------ */
+function stripedTexture(color1, color2, vertical) {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color1;
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillStyle = color2;
+  const n = 16, gap = 512 / n;
+  for (let i = 0; i < n; i += 2) {
+    if (vertical) ctx.fillRect(i * gap, 0, gap, 512);
+    else ctx.fillRect(0, i * gap, 512, gap);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+function makeTextSprite(text, color) {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0)';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.font = 'bold 48px Segoe UI, sans-serif';
+  ctx.fillStyle = color || '#e94560';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 256, 64);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const spr = new THREE.Sprite(mat);
+  spr.scale.set(2.4, 0.6, 1);
+  return spr;
+}
+
+function makeLine(p1, p2, color) {
+  const geo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+  const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
+  return new THREE.Line(geo, mat);
+}
+
+/* ------------------------------------------------------------------
+   Scene 1: Ames Room
+   ------------------------------------------------------------------ */
+const amesGroup = new THREE.Group();
+scene.add(amesGroup);
+
+// Room corners (world coordinates)
+// Front wall (closer to viewer, larger opening)
+const FL = new THREE.Vector3(-2, 0, 0);
+const FR = new THREE.Vector3(2, 0, 0);
+const FTL = new THREE.Vector3(-2, 3, 0);
+const FTR = new THREE.Vector3(2, 3, 0);
+// Back wall (diagonal: left is far, right is near)
+const BL = new THREE.Vector3(-1.2, 0, -9);
+const BR = new THREE.Vector3(1.2, 0, -3.5);
+const BTL = new THREE.Vector3(-1.2, 3, -9);
+const BTR = new THREE.Vector3(1.2, 3, -3.5);
+
+const peepholePos = new THREE.Vector3(0, 1.55, 5.5);
+const backCenter = new THREE.Vector3().addVectors(BL, BR).multiplyScalar(0.5);
+backCenter.y = 1.5;
+
+function makeQuad(p1, p2, p3, p4, material) {
+  const geo = new THREE.BufferGeometry();
+  const verts = new Float32Array([
+    p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z,
+    p1.x, p1.y, p1.z, p3.x, p3.y, p3.z, p4.x, p4.y, p4.z,
+  ]);
+  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+const floorTex = stripedTexture('#7a5c45', '#5d4037', false);
+const wallTex = stripedTexture('#d8d2c5', '#c8c0b0', true);
+const ceilTex = stripedTexture('#e8e4dc', '#d6d0c5', false);
+
+const matFloor = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9, side: THREE.DoubleSide });
+const matWall = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8, side: THREE.DoubleSide });
+const matCeil = new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 0.8, side: THREE.DoubleSide });
+
+// Build the Ames room faces
+amesGroup.clear();
+function addRoomFace(name, p1, p2, p3, p4, mat) {
+  const mesh = makeQuad(p1, p2, p3, p4, mat.clone());
+  mesh.name = name;
+  amesGroup.add(mesh);
+}
+addRoomFace('floor', FL, FR, BR, BL, matFloor);
+addRoomFace('ceiling', FTL, FTR, BTR, BTL, matCeil);
+addRoomFace('leftWall', FL, FTL, BTL, BL, matWall);
+addRoomFace('rightWall', FR, FTR, BTR, BR, matWall);
+addRoomFace('backWall', BL, BR, BTR, BTL, matWall);
+
+// Door frame (thin beams only — keep the view open)
+const frameMat = new THREE.MeshStandardMaterial({ color: 0x5d4037, roughness: 0.9 });
+function makeBeam(p1, p2, thickness) {
+  const len = p1.distanceTo(p2);
+  const geo = new THREE.BoxGeometry(thickness, thickness, len);
+  const mesh = new THREE.Mesh(geo, frameMat);
+  mesh.position.copy(p1).add(p2).multiplyScalar(0.5);
+  mesh.lookAt(p2);
+  mesh.castShadow = true;
+  return mesh;
+}
+const beamL = makeBeam(FL, FTL, 0.15);
+const beamR = makeBeam(FR, FTR, 0.15);
+const beamT = makeBeam(FTL, FTR, 0.15);
+const beamB = makeBeam(FL, FR, 0.15);
+amesGroup.add(beamL, beamR, beamT, beamB);
+
+// Wireframe overlay (true shape)
+const trueShapeGroup = new THREE.Group();
+const edges = [
+  [FL, FR], [FR, BR], [BR, BL], [BL, FL],
+  [FTL, FTR], [FTR, BTR], [BTR, BTL], [BTL, FTL],
+  [FL, FTL], [FR, FTR], [BL, BTL], [BR, BTR]
+];
+edges.forEach(([a, b]) => trueShapeGroup.add(makeLine(a, b, 0xe94560)));
+// Diagonal measurement lines
+const measureGroup = new THREE.Group();
+const leftMeasure = makeLine(new THREE.Vector3(-1.2, 0, -9), new THREE.Vector3(-1.2, 3, -9), 0x4ade80);
+const rightMeasure = makeLine(new THREE.Vector3(1.2, 0, -3.5), new THREE.Vector3(1.2, 3, -3.5), 0x4ade80);
+measureGroup.add(leftMeasure, rightMeasure);
+const leftLabel = makeTextSprite('far', '#4ade80');
+leftLabel.position.set(-1.2, 3.4, -9);
+measureGroup.add(leftLabel);
+const rightLabel = makeTextSprite('near', '#4ade80');
+rightLabel.position.set(1.2, 3.4, -3.5);
+measureGroup.add(rightLabel);
+
+amesGroup.add(trueShapeGroup);
+amesGroup.add(measureGroup);
+trueShapeGroup.visible = false;
+measureGroup.visible = false;
+
+// Character
+const charGroup = new THREE.Group();
+const charBody = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22, 0.22, 1.0, 16),
+  new THREE.MeshStandardMaterial({ color: 0xe94560, emissive: 0x66111a, emissiveIntensity: 0.35 })
+);
+charBody.position.y = 0.5;
+charBody.castShadow = true;
+const charHead = new THREE.Mesh(
+  new THREE.SphereGeometry(0.16, 16, 16),
+  new THREE.MeshStandardMaterial({ color: 0xffb6b6, emissive: 0x441111, emissiveIntensity: 0.2 })
+);
+charHead.position.y = 1.18;
+charHead.castShadow = true;
+charGroup.add(charBody, charHead);
+amesGroup.add(charGroup);
+
+function updateCharacter(t) {
+  // t in [0,1] from left (far) to right (near)
+  const pos = new THREE.Vector3().lerpVectors(BL, BR, t);
+  charGroup.position.set(pos.x, 0, pos.z);
+  const dist = peepholePos.distanceTo(pos);
+  document.getElementById('badge1').innerHTML = `Distance from eye: <b>${dist.toFixed(2)} m</b>`;
+  document.getElementById('badge2').innerHTML = `Retinal height: <b>${(1.34 / dist * 100).toFixed(1)} cm</b> (equiv.)`;
+}
+
+/* ------------------------------------------------------------------
+   Scene 2: One Image, Many Objects
+   ------------------------------------------------------------------ */
+const oneGroup = new THREE.Group();
+scene.add(oneGroup);
+oneGroup.visible = false;
+
+const eyePos = new THREE.Vector3(0, 0, 5);
+const objectA = { pos: new THREE.Vector3(-1.5, 0, -4), size: 1.0, color: 0x60a5fa };
+const objectB = { pos: new THREE.Vector3(1.5, 0, -6), size: 1.5, color: 0xfacc15 };
+
+function makeCube(size, color, x, z) {
+  const cube = new THREE.Mesh(
+    new THREE.BoxGeometry(size, size, size),
+    new THREE.MeshStandardMaterial({ color: color, roughness: 0.4, metalness: 0.1 })
+  );
+  cube.position.set(x, size / 2, z);
+  cube.castShadow = true;
+  cube.receiveShadow = true;
+  return cube;
+}
+
+const cubeA = makeCube(objectA.size, objectA.color, objectA.pos.x, objectA.pos.z);
+const cubeB = makeCube(objectB.size, objectB.color, objectB.pos.x, objectB.pos.z);
+oneGroup.add(cubeA, cubeB);
+
+// Ground grid
+const gridHelper = new THREE.GridHelper(20, 20, 0x334155, 0x1e293b);
+oneGroup.add(gridHelper);
+
+// Projection lines
+const projGroup = new THREE.Group();
+oneGroup.add(projGroup);
+
+function updateOneImage() {
+  const distB = parseFloat(document.getElementById('dist-slider').value);
+  const sizeB = parseFloat(document.getElementById('size-slider').value);
+  objectB.size = sizeB;
+  objectB.pos.z = -distB;
+  cubeB.scale.set(1, 1, 1);
+  cubeB.geometry.dispose();
+  cubeB.geometry = new THREE.BoxGeometry(sizeB, sizeB, sizeB);
+  cubeB.position.set(objectB.pos.x, sizeB / 2, objectB.pos.z);
+
+  const angA = 2 * Math.atan(objectA.size / (2 * Math.abs(objectA.pos.z - eyePos.z)));
+  const angB = 2 * Math.atan(objectB.size / (2 * Math.abs(objectB.pos.z - eyePos.z)));
+  const match = Math.abs(angA - angB) < 0.015;
+
+  projGroup.clear();
+  [cubeA, cubeB].forEach((cube, idx) => {
+    const c = idx === 0 ? objectA : objectB;
+    const top = new THREE.Vector3(cube.position.x, cube.geometry.parameters.height / 2, cube.position.z);
+    const bot = new THREE.Vector3(cube.position.x, 0, cube.position.z);
+    const color = match ? 0x4ade80 : 0xf87171;
+    projGroup.add(makeLine(eyePos, top, color));
+    projGroup.add(makeLine(eyePos, bot, color));
+  });
+
+  // Retinal “screen” silhouettes
+  const screenZ = 3;
+  function silhouette(cube, offsetX, color) {
+    const h = cube.geometry.parameters.height;
+    const distEye = Math.abs(eyePos.z - cube.position.z);
+    const screenH = h / distEye * Math.abs(screenZ - eyePos.z);
+    const geo = new THREE.PlaneGeometry(0.4, screenH);
+    const mat = new THREE.MeshBasicMaterial({ color: color, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(offsetX, screenH / 2, screenZ);
+    return mesh;
+  }
+  projGroup.add(silhouette(cubeA, -0.6, 0x60a5fa));
+  projGroup.add(silhouette(cubeB, 0.6, 0xfacc15));
+
+  document.getElementById('badge1').innerHTML = `Object A: size <b>${objectA.size.toFixed(1)} m</b>, distance <b>${Math.abs(objectA.pos.z).toFixed(1)} m</b>`;
+  document.getElementById('badge2').innerHTML = `Object B: size <b>${objectB.size.toFixed(2)} m</b>, distance <b>${distB.toFixed(1)} m</b>${match ? ' — <b>same retinal image</b>' : ''}`;
+}
+
+/* ------------------------------------------------------------------
+   UI State
+   ------------------------------------------------------------------ */
+let currentScene = 'ames'; // 'ames' or 'oneimage'
+let viewMode = 'peephole';   // 'peephole' or 'orbit'
+let showTrue = false;
+
+const btnAmes = document.getElementById('btn-ames');
+const btnOne = document.getElementById('btn-oneimage');
+const btnPeep = document.getElementById('btn-peephole');
+const btnOrbit = document.getElementById('btn-orbit');
+const btnTrue = document.getElementById('btn-true');
+const btnReset = document.getElementById('btn-reset');
+const posSlider = document.getElementById('pos-slider');
+const distSlider = document.getElementById('dist-slider');
+const sizeSlider = document.getElementById('size-slider');
+
+function setCameraForCurrent() {
+  if (currentScene === 'ames') {
+    if (viewMode === 'peephole') {
+      camera.position.copy(peepholePos);
+      camera.lookAt(backCenter);
+      camera.fov = 55;
+      if (controls) { controls.enabled = false; }
+    } else {
+      camera.position.set(0, 5, 10);
+      camera.lookAt(0, 1, -4);
+      camera.fov = 55;
+      makeControls();
+      controls.target.set(0, 1, -4);
+      controls.enabled = true;
+    }
+  } else {
+    if (viewMode === 'peephole') {
+      camera.position.copy(eyePos);
+      camera.lookAt(0, 0, 0);
+      camera.fov = 55;
+      if (controls) controls.enabled = false;
+    } else {
+      camera.position.set(0, 4, 8);
+      camera.lookAt(0, 0, -2);
+      makeControls();
+      controls.target.set(0, 0, -2);
+      controls.enabled = true;
+    }
+  }
+  camera.updateProjectionMatrix();
+}
+
+function updateUI() {
+  btnAmes.classList.toggle('active', currentScene === 'ames');
+  btnOne.classList.toggle('active', currentScene === 'oneimage');
+  btnPeep.classList.toggle('active', viewMode === 'peephole');
+  btnOrbit.classList.toggle('active', viewMode === 'orbit');
+  btnTrue.classList.toggle('active', showTrue);
+  btnTrue.textContent = showTrue ? 'Hide true shape' : 'Show true shape';
+  document.getElementById('ames-controls').style.display = currentScene === 'ames' ? 'block' : 'none';
+  document.getElementById('oneimage-controls').style.display = currentScene === 'oneimage' ? 'block' : 'none';
+
+  trueShapeGroup.visible = currentScene === 'ames' && showTrue;
+  measureGroup.visible = currentScene === 'ames' && showTrue;
+
+  amesGroup.visible = currentScene === 'ames';
+  oneGroup.visible = currentScene === 'oneimage';
+
+  document.getElementById('note-text').innerHTML = currentScene === 'ames'
+    ? 'The figure looks small on the left and large on the right — but the room itself is distorted. Switch to <b>Free orbit</b> and <b>Show true shape</b> to see why.'
+    : 'Adjust size and distance until both objects produce the same retinal projection. Same image, different real objects.';
+
+  setCameraForCurrent();
+  if (currentScene === 'ames') updateCharacter(parseInt(posSlider.value) / 100);
+  else updateOneImage();
+}
+
+btnAmes.onclick = () => { currentScene = 'ames'; updateUI(); updateCharacter(parseInt(posSlider.value) / 100); };
+btnOne.onclick = () => { currentScene = 'oneimage'; updateUI(); updateOneImage(); };
+btnPeep.onclick = () => { viewMode = 'peephole'; updateUI(); };
+btnOrbit.onclick = () => { viewMode = 'orbit'; updateUI(); };
+btnTrue.onclick = () => { showTrue = !showTrue; updateUI(); };
+btnReset.onclick = () => {
+  posSlider.value = 0;
+  distSlider.value = 6;
+  sizeSlider.value = 1.5;
+  viewMode = 'peephole';
+  showTrue = false;
+  updateUI();
+  updateCharacter(0);
+  updateOneImage();
+};
+
+posSlider.oninput = () => {
+  const v = parseInt(posSlider.value);
+  document.getElementById('pos-val').textContent = v < 20 ? 'Left (far)' : v > 80 ? 'Right (near)' : 'Middle';
+  updateCharacter(v / 100);
+};
+distSlider.oninput = () => {
+  document.getElementById('dist-val').textContent = parseFloat(distSlider.value).toFixed(1) + ' m';
+  updateOneImage();
+};
+sizeSlider.oninput = () => {
+  document.getElementById('size-val').textContent = parseFloat(sizeSlider.value).toFixed(2) + ' m';
+  updateOneImage();
+};
+
+/* ------------------------------------------------------------------
+   Render loop
+   ------------------------------------------------------------------ */
+function animate() {
+  requestAnimationFrame(animate);
+  if (controls && controls.enabled) controls.update();
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+updateUI();
+animate();
+</script>
+</body>
+</html>
