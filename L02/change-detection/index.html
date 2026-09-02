@@ -18,9 +18,11 @@
          color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
   .btn:active { transform: scale(.97); }
   #stage { width: 100%; max-width: 640px; height: 52vh; min-height: 320px; border-radius: 16px;
-           position: relative; overflow: hidden; background: #0f3460; touch-action: manipulation; }
-  #stage.mask { background: #666; }
-  #stage img, .shape { position: absolute; }
+           position: relative; overflow: hidden; background: #666; display: none; }
+  #stage img, #stage svg { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+  #stage svg.active { display: block; }
+  #stage .hitbox { cursor: pointer; fill: rgba(255,255,255,.01); stroke: none; }
+  #stage .hitbox:hover { fill: rgba(255,255,255,.08); }
   #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
   .hidden { display: none !important; }
   .big { font-size: 36px; color: #e94560; font-weight: bold; margin: 8px 0; }
@@ -31,13 +33,12 @@
 
 <div class="card" id="intro">
   <h1>Spot the Change</h1>
-  <p>A scene will flicker — the picture alternates with a brief grey screen. <b>One thing keeps changing.</b></p>
-  <p>Tap the screen the moment you spot what changes. There are 4 scenes. You have 30 seconds per scene.</p>
-  <p>⚠️ Don't tap randomly — a wrong tap ends the round.</p>
+  <p>Two versions of a real-world scene will alternate with a brief grey screen. <b>One object changes.</b></p>
+  <p>Click or tap the object that changes as soon as you find it. There are 4 scenes. You have 30 seconds per scene.</p>
   <button class="btn" id="startBtn">Start</button>
 </div>
 
-<div id="stage" class="hidden"></div>
+<div id="stage"></div>
 <div id="status"></div>
 
 <div class="card hidden" id="results">
@@ -45,99 +46,290 @@
   <div class="big" id="score"></div>
   <p id="interp"></p>
   <div class="trials" id="trialList"></div>
-  <p style="margin-top:16px"><b>Why was that hard?</b> The grey flash wipes out the motion signal that normally shouts
-  "look here!". Without it, you can only find the change by checking one object at a time — with ATTENTION.
-  That's change blindness: seeing is not a photograph; it's a bet placed on whatever you happened to attend.
-  Next lecture: the gatekeeper.</p>
+  <p style="margin-top:16px"><b>Why was that hard?</b> The grey flash wipes out the motion signal that normally tells
+  you where something changed. Without that cue, you must search the scene object by object — with attention.
+  That is change blindness: perception is not a photograph; it is built from whatever you attend.</p>
   <button class="btn" id="againBtn">Run again</button>
 </div>
 
 <script>
-const COLORS = ['#e94560','#f5a623','#50c878','#4a90d9','#b667d9','#e8e8e8','#d9534f','#5bc0de'];
-const N_SHAPES = 7, N_ROUNDS = 4, MAX_MS = 30000;
-const stage = document.getElementById('stage'), status = document.getElementById('status');
-let round = 0, results = [], flickerTimer = null, roundTimer = null, startTime = 0, showing = null, solved = false;
+// Rensink, O'Regan & Clark (1997) flicker paradigm timing.
+const IMG_MS = 240, MASK_MS = 80, MAX_MS = 30000, N_ROUNDS = 4;
 
-function makeScene(seedBase) {
-  let s = seedBase;
-  const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
-  const shapes = [];
-  for (let i = 0; i < N_SHAPES; i++) {
-    shapes.push({
-      x: 8 + rnd() * 76, y: 8 + rnd() * 72, w: 8 + rnd() * 10,
-      c: COLORS[Math.floor(rnd() * COLORS.length)],
-      round: rnd() > 0.5
-    });
+// Each scene: two SVGs, one change target id, and a description shown on reveal.
+const SCENES = [
+  {
+    name: 'Park',
+    changeId: 'bird',
+    changeDesc: 'The bird on the branch appeared / disappeared.',
+    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="sky1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#87CEEB"/><stop offset="100%" stop-color="#E0F7FA"/></linearGradient></defs>
+      <rect width="400" height="300" fill="url(#sky1)"/>
+      <circle cx="340" cy="50" r="25" fill="#FFD700"/>
+      <ellipse cx="80" cy="60" rx="35" ry="14" fill="#fff" opacity=".9"/>
+      <ellipse cx="110" cy="55" rx="28" ry="12" fill="#fff" opacity=".85"/>
+      <rect x="0" y="220" width="400" height="80" fill="#7CFC00"/>
+      <rect x="20" y="120" width="14" height="120" fill="#8B4513"/>
+      <circle cx="27" cy="110" r="45" fill="#228B22"/>
+      <circle cx="27" cy="75" r="35" fill="#32CD32"/>
+      <rect x="140" y="160" width="90" height="60" rx="4" fill="#A0522D"/>
+      <rect x="155" y="175" width="22" height="22" fill="#87CEEB"/>
+      <rect x="195" y="175" width="22" height="22" fill="#87CEEB"/>
+      <rect x="155" y="205" width="22" height="15" fill="#8B4513"/>
+      <rect x="195" y="205" width="22" height="15" fill="#8B4513"/>
+      <path d="M260 200 L340 200 L300 150 Z" fill="#708090"/>
+      <rect x="245" y="200" width="110" height="8" fill="#696969"/>
+      <circle id="bird" data-hit="true" cx="52" cy="88" r="7" fill="#FF4500"/>
+      <rect data-hit="true" x="60" y="210" width="30" height="18" rx="9" fill="#4a90d9"/>
+      <rect data-hit="true" x="330" y="150" width="30" height="80" fill="#D2691E"/>
+    </svg>`,
+    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="sky1b" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#87CEEB"/><stop offset="100%" stop-color="#E0F7FA"/></linearGradient></defs>
+      <rect width="400" height="300" fill="url(#sky1b)"/>
+      <circle cx="340" cy="50" r="25" fill="#FFD700"/>
+      <ellipse cx="80" cy="60" rx="35" ry="14" fill="#fff" opacity=".9"/>
+      <ellipse cx="110" cy="55" rx="28" ry="12" fill="#fff" opacity=".85"/>
+      <rect x="0" y="220" width="400" height="80" fill="#7CFC00"/>
+      <rect x="20" y="120" width="14" height="120" fill="#8B4513"/>
+      <circle cx="27" cy="110" r="45" fill="#228B22"/>
+      <circle cx="27" cy="75" r="35" fill="#32CD32"/>
+      <rect x="140" y="160" width="90" height="60" rx="4" fill="#A0522D"/>
+      <rect x="155" y="175" width="22" height="22" fill="#87CEEB"/>
+      <rect x="195" y="175" width="22" height="22" fill="#87CEEB"/>
+      <rect x="155" y="205" width="22" height="15" fill="#8B4513"/>
+      <rect x="195" y="205" width="22" height="15" fill="#8B4513"/>
+      <path d="M260 200 L340 200 L300 150 Z" fill="#708090"/>
+      <rect x="245" y="200" width="110" height="8" fill="#696969"/>
+      <rect data-hit="true" x="60" y="210" width="30" height="18" rx="9" fill="#4a90d9"/>
+      <rect data-hit="true" x="330" y="150" width="30" height="80" fill="#D2691E"/>
+    </svg>`
+  },
+  {
+    name: 'Kitchen',
+    changeId: 'cup',
+    changeDesc: 'The mug on the counter appeared / disappeared.',
+    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="300" fill="#F5F5DC"/>
+      <rect x="0" y="240" width="400" height="60" fill="#DEB887"/>
+      <rect x="20" y="20" width="120" height="220" fill="#C0C0C0"/>
+      <rect x="35" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="85" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="35" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="85" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="35" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="85" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="180" y="160" width="180" height="80" fill="#F4A460"/>
+      <rect x="200" y="90" width="50" height="70" fill="#87CEEB"/>
+      <circle data-hit="true" cx="225" cy="125" r="8" fill="#FFD700"/>
+      <rect data-hit="true" x="300" y="130" width="14" height="60" fill="#228B22"/>
+      <circle data-hit="true" cx="307" cy="120" r="16" fill="#FF6347"/>
+      <path id="cup" data-hit="true" d="M270 200 L270 235 L295 235 L295 200 Z" fill="#e94560"/>
+      <path d="M295 205 Q305 205 305 215 Q305 225 295 225" fill="none" stroke="#e94560" stroke-width="4"/>
+    </svg>`,
+    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="300" fill="#F5F5DC"/>
+      <rect x="0" y="240" width="400" height="60" fill="#DEB887"/>
+      <rect x="20" y="20" width="120" height="220" fill="#C0C0C0"/>
+      <rect x="35" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="85" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="35" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="85" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="35" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="85" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
+      <rect x="180" y="160" width="180" height="80" fill="#F4A460"/>
+      <rect x="200" y="90" width="50" height="70" fill="#87CEEB"/>
+      <circle data-hit="true" cx="225" cy="125" r="8" fill="#FFD700"/>
+      <rect data-hit="true" x="300" y="130" width="14" height="60" fill="#228B22"/>
+      <circle data-hit="true" cx="307" cy="120" r="16" fill="#FF6347"/>
+    </svg>`
+  },
+  {
+    name: 'Study',
+    changeId: 'book',
+    changeDesc: 'A book appeared / disappeared on the shelf.',
+    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="300" fill="#E6E6FA"/>
+      <rect x="40" y="40" width="320" height="180" fill="#8B4513"/>
+      <rect x="55" y="55" width="290" height="150" fill="#D2691E"/>
+      <rect x="70" y="70" width="35" height="110" fill="#B22222"/>
+      <rect x="110" y="70" width="25" height="110" fill="#228B22"/>
+      <rect x="145" y="70" width="30" height="110" fill="#4a90d9"/>
+      <rect x="185" y="70" width="20" height="110" fill="#FFD700"/>
+      <rect id="book" data-hit="true" x="215" y="75" width="28" height="105" fill="#800080"/>
+      <rect data-hit="true" x="255" y="70" width="22" height="110" fill="#FF6347"/>
+      <rect data-hit="true" x="290" y="70" width="32" height="110" fill="#20B2AA"/>
+      <rect data-hit="true" x="80" y="230" width="240" height="50" fill="#696969"/>
+      <rect data-hit="true" x="100" y="200" width="80" height="45" fill="#A0522D"/>
+      <circle data-hit="true" cx="330" cy="245" r="18" fill="#B0C4DE"/>
+    </svg>`,
+    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="300" fill="#E6E6FA"/>
+      <rect x="40" y="40" width="320" height="180" fill="#8B4513"/>
+      <rect x="55" y="55" width="290" height="150" fill="#D2691E"/>
+      <rect x="70" y="70" width="35" height="110" fill="#B22222"/>
+      <rect x="110" y="70" width="25" height="110" fill="#228B22"/>
+      <rect x="145" y="70" width="30" height="110" fill="#4a90d9"/>
+      <rect x="185" y="70" width="20" height="110" fill="#FFD700"/>
+      <rect data-hit="true" x="255" y="70" width="22" height="110" fill="#FF6347"/>
+      <rect data-hit="true" x="290" y="70" width="32" height="110" fill="#20B2AA"/>
+      <rect data-hit="true" x="80" y="230" width="240" height="50" fill="#696969"/>
+      <rect data-hit="true" x="100" y="200" width="80" height="45" fill="#A0522D"/>
+      <circle data-hit="true" cx="330" cy="245" r="18" fill="#B0C4DE"/>
+    </svg>`
+  },
+  {
+    name: 'Street',
+    changeId: 'light',
+    changeDesc: 'The traffic light changed colour.',
+    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="300" fill="#87CEEB"/>
+      <rect x="0" y="250" width="400" height="50" fill="#696969"/>
+      <rect x="30" y="80" width="100" height="170" fill="#708090"/>
+      <rect x="45" y="95" width="70" height="50" fill="#87CEEB"/>
+      <rect x="45" y="155" width="70" height="50" fill="#87CEEB"/>
+      <rect x="45" y="215" width="70" height="25" fill="#696969"/>
+      <rect x="170" y="120" width="60" height="130" fill="#A0522D"/>
+      <rect x="185" y="60" width="30" height="60" fill="#333"/>
+      <circle cx="200" cy="78" r="10" fill="#e94560"/>
+      <circle cx="200" cy="105" r="10" fill="#333"/>
+      <circle id="light" data-hit="true" cx="200" cy="132" r="10" fill="#333"/>
+      <rect data-hit="true" x="280" y="200" width="90" height="50" fill="#4a90d9"/>
+      <circle data-hit="true" cx="325" cy="180" r="22" fill="#32CD32"/>
+      <rect data-hit="true" x="260" y="110" width="110" height="70" fill="#F4A460"/>
+    </svg>`,
+    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+      <rect width="400" height="300" fill="#87CEEB"/>
+      <rect x="0" y="250" width="400" height="50" fill="#696969"/>
+      <rect x="30" y="80" width="100" height="170" fill="#708090"/>
+      <rect x="45" y="95" width="70" height="50" fill="#87CEEB"/>
+      <rect x="45" y="155" width="70" height="50" fill="#87CEEB"/>
+      <rect x="45" y="215" width="70" height="25" fill="#696969"/>
+      <rect x="170" y="120" width="60" height="130" fill="#A0522D"/>
+      <rect x="185" y="60" width="30" height="60" fill="#333"/>
+      <circle cx="200" cy="78" r="10" fill="#e94560"/>
+      <circle cx="200" cy="105" r="10" fill="#333"/>
+      <circle id="light" data-hit="true" cx="200" cy="132" r="10" fill="#32CD32"/>
+      <rect data-hit="true" x="280" y="200" width="90" height="50" fill="#4a90d9"/>
+      <circle data-hit="true" cx="325" cy="180" r="22" fill="#32CD32"/>
+      <rect data-hit="true" x="260" y="110" width="110" height="70" fill="#F4A460"/>
+    </svg>`
   }
-  return shapes;
+];
+
+const stage = document.getElementById('stage'), status = document.getElementById('status');
+let round = 0, results = [], flickerTimer = null, roundTimer = null, startTime = 0, solved = false;
+let showingA = true, svgA = null, svgB = null, cycle = 'a';
+
+function makeHitboxes(svg, scene, isA) {
+  // Add transparent hitboxes on top so clicks are easier than pixel-perfect SVG targeting.
+  // The change target is only in the version that contains it.
+  const targets = [...svg.querySelectorAll('[data-hit="true"]')];
+  targets.forEach(el => {
+    const r = el.getBBox();
+    const pad = 4;
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', r.x - pad);
+    rect.setAttribute('y', r.y - pad);
+    rect.setAttribute('width', r.width + pad * 2);
+    rect.setAttribute('height', r.height + pad * 2);
+    rect.setAttribute('class', 'hitbox');
+    rect.dataset.targetId = el.id || '';
+    rect.addEventListener('pointerdown', e => handleClick(e, el.id || '', scene));
+    svg.appendChild(rect);
+  });
 }
 
-function render(shapes, changeIdx, changed) {
+function loadScene(scene) {
   stage.innerHTML = '';
-  shapes.forEach((sh, i) => {
-    const el = document.createElement('div');
-    el.className = 'shape';
-    let color = sh.c, hide = false;
-    if (changed && i === changeIdx) {
-      if (round % 2 === 0) color = COLORS[(COLORS.indexOf(sh.c) + 3) % COLORS.length];
-      else hide = true; // change type: disappearance on odd rounds
+  svgA = new DOMParser().parseFromString(scene.a, 'image/svg+xml').documentElement;
+  svgB = new DOMParser().parseFromString(scene.b, 'image/svg+xml').documentElement;
+  svgA.classList.add('active');
+  stage.appendChild(svgA);
+  stage.appendChild(svgB);
+  // Hitboxes need the SVGs in the DOM so getBBox returns geometry.
+  makeHitboxes(svgA, scene, true);
+  makeHitboxes(svgB, scene, false);
+  showingA = true;
+}
+
+// Flicker cycle: A -> mask -> B -> mask -> A ...  (Rensink et al. 1997 style)
+function nextPhase() {
+  if (solved) return;
+  if (cycle === 'a') {
+    svgA.classList.remove('active');
+    cycle = 'mask';
+    flickerTimer = setTimeout(nextPhase, MASK_MS);
+  } else if (cycle === 'mask') {
+    if (showingA) {
+      svgA.classList.remove('active');
+      svgB.classList.add('active');
+      showingA = false;
+    } else {
+      svgB.classList.remove('active');
+      svgA.classList.add('active');
+      showingA = true;
     }
-    if (hide) return;
-    el.style.cssText = `left:${sh.x}%;top:${sh.y}%;width:${sh.w}%;aspect-ratio:1;background:${color};` +
-      (sh.round ? 'border-radius:50%;' : 'border-radius:2px;');
-    stage.appendChild(el);
-  });
+    cycle = 'b';
+    flickerTimer = setTimeout(nextPhase, IMG_MS);
+  } else if (cycle === 'b') {
+    svgA.classList.remove('active');
+    svgB.classList.remove('active');
+    cycle = 'mask';
+    flickerTimer = setTimeout(nextPhase, MASK_MS);
+  }
 }
 
 function startRound() {
   if (round >= N_ROUNDS) return finish();
   solved = false;
-  const shapes = makeScene(1234 + round * 777);
-  const changeIdx = Math.floor((round * 2.7 + 1) % N_SHAPES);
-  let showChanged = false;
-  stage.classList.remove('hidden');
-  status.textContent = `Scene ${round + 1}/${N_ROUNDS} — tap when you spot the change`;
+  cycle = 'a';
+  const scene = SCENES[round];
+  stage.style.display = 'block';
+  loadScene(scene);
+  status.textContent = `Scene ${round + 1}/${N_ROUNDS} — click/tap the object that changes`;
   startTime = performance.now();
-  const tick = () => {
-    if (showing === 'scene') {
-      stage.classList.add('mask'); stage.innerHTML = ''; showing = 'mask';
-      flickerTimer = setTimeout(tick, 120);
-    } else {
-      stage.classList.remove('mask');
-      showChanged = !showChanged;
-      render(shapes, changeIdx, showChanged);
-      showing = 'scene';
-      flickerTimer = setTimeout(tick, 650);
-    }
-  };
-  tick();
-  roundTimer = setTimeout(() => endRound(false), MAX_MS);
-  stage.onpointerdown = () => endRound(true);
-  stage.dataset.change = changeIdx;
+  flickerTimer = setTimeout(nextPhase, IMG_MS);
+  roundTimer = setTimeout(() => endRound(false, scene), MAX_MS);
 }
 
-function endRound(found) {
+function handleClick(e, clickedId, scene) {
+  e.stopPropagation();
+  if (solved) return;
+  if (clickedId === scene.changeId) {
+    endRound(true, scene);
+  } else {
+    status.textContent = 'Not that one — keep looking.';
+  }
+}
+
+function endRound(found, scene) {
   if (solved) return;
   solved = true;
   clearTimeout(flickerTimer);
   clearTimeout(roundTimer);
-  stage.onpointerdown = null;
   const rt = Math.round(performance.now() - startTime);
   results.push(found && rt <= MAX_MS ? rt : null);
-  status.textContent = found ? `Found in ${(rt/1000).toFixed(1)} s ✓` : 'Time up — the change is revealed now.';
+  if (found) {
+    status.textContent = `Found in ${(rt/1000).toFixed(1)} s ✓`;
+  } else {
+    status.textContent = 'Time up — change revealed.';
+    // Reveal the changed version permanently.
+    svgA.classList.remove('active');
+    svgB.classList.add('active');
+  }
   round++;
-  setTimeout(startRound, 1600);
+  setTimeout(startRound, 1800);
 }
 
 function finish() {
-  stage.classList.add('hidden'); stage.innerHTML = '';
+  stage.style.display = 'none';
   status.textContent = '';
   const found = results.filter(r => r !== null);
   document.getElementById('score').textContent = `${found.length}/${N_ROUNDS} found` +
     (found.length ? ` · mean ${(found.reduce((a,b)=>a+b,0)/found.length/1000).toFixed(1)} s` : '');
   document.getElementById('interp').textContent =
     found.length === N_ROUNDS ? 'Sharp! But notice how LONG it took — without a motion cue, attention must search object by object.'
-    : 'Completely normal — without the motion cue, your attention has to check objects one at a time, and it often loses.';
+    : 'Typical result — without the motion cue, your attention has to check objects one at a time.';
   document.getElementById('trialList').textContent =
     'Scenes: ' + results.map(r => r ? (r/1000).toFixed(1) + ' s' : 'missed').join(' · ');
   document.getElementById('results').classList.remove('hidden');
