@@ -120,14 +120,15 @@ let baseOrbitTarget = new THREE.Vector3();
 let currentZoom = 1.0;
 
 // Camera is always in orbit mode; Reset returns it to the peephole/eye position.
+// Zoom is done via FOV (slider), not camera dolly, so the peephole projection
+// stays valid while magnifying.
 function attachControls(target) {
   detachControls();
   controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.enablePan = false;
-  controls.enableZoom = true;
-  controls.zoomSpeed = 1.0;
+  controls.enablePan = true;
+  controls.enableZoom = false; // zoom is handled by the FOV slider
   controls.minPolarAngle = Math.PI * 0.15;
   controls.maxPolarAngle = Math.PI * 0.55;
   controls.target.copy(target);
@@ -411,6 +412,7 @@ oneGroup.add(grid);
 
 const projGroup = new THREE.Group();
 oneGroup.add(projGroup);
+let oneImageEyeIcon = null;
 
 function disposeFigure(mesh) {
   if (mesh.geometry) mesh.geometry.dispose();
@@ -463,9 +465,9 @@ function updateOneImage() {
   projGroup.add(makeLine(corner(hw, hh), corner(-hw, hh), 0xe94560));
   projGroup.add(makeLine(corner(-hw, hh), corner(-hw, -hh), 0xe94560));
 
-  const screenLabel = makeTextSprite('retinal image (screen)', '#e94560');
-  screenLabel.position.set(0, screenY + hh + 0.35, screenZ);
-  screenLabel.scale.set(1.8, 0.45, 1);
+  const screenLabel = makeTextSprite('retinal image', '#e94560');
+  screenLabel.position.set(0, screenY + hh + 0.42, screenZ);
+  screenLabel.scale.set(1.0, 0.25, 1);
   projGroup.add(screenLabel);
 
   // Draw the two silhouettes on the retina screen, side by side.
@@ -477,7 +479,7 @@ function updateOneImage() {
     c.width = 128; c.height = 128;
     const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, 128, 128);
-    ctx.fillStyle = fig.material.color;
+    ctx.fillStyle = '#' + fig.material.color.getHexString();
     ctx.beginPath();
     ctx.arc(64, 64, 62, 0, Math.PI * 2);
     ctx.fill();
@@ -489,23 +491,23 @@ function updateOneImage() {
     projGroup.add(mesh);
   });
 
-  // Simple eye icon at the observer point.
+  // Simple eye icon at the observer point (hidden while the camera is at the eye).
   const eyeBall = new THREE.Mesh(
     new THREE.SphereGeometry(0.14, 20, 20),
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
   );
   eyeBall.position.copy(eyePos);
-  projGroup.add(eyeBall);
   const pupil = new THREE.Mesh(
     new THREE.SphereGeometry(0.06, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0x111111 })
   );
   pupil.position.set(eyePos.x, eyePos.y, eyePos.z - 0.11);
-  projGroup.add(pupil);
   const eyeLabel = makeTextSprite('eye', '#ffffff');
   eyeLabel.position.copy(eyePos).add(new THREE.Vector3(0, 0.35, 0));
   eyeLabel.scale.set(0.9, 0.25, 1);
-  projGroup.add(eyeLabel);
+  oneImageEyeIcon = new THREE.Group();
+  oneImageEyeIcon.add(eyeBall, pupil, eyeLabel);
+  projGroup.add(oneImageEyeIcon);
 
   document.getElementById('badge1').innerHTML = `Object A: size <b>${objectA.height.toFixed(1)} m</b>, distance <b>${dA.toFixed(1)} m</b> → angular size <b>${angA.toFixed(1)}°</b>`;
   document.getElementById('badge2').innerHTML = `Object B: size <b>${sizeB.toFixed(2)} m</b>, distance <b>${distB.toFixed(1)} m</b> → angular size <b>${angB.toFixed(1)}°</b>`;
@@ -517,7 +519,7 @@ function updateOneImage() {
 /* ------------------------------------------------------------------
    UI state
    ------------------------------------------------------------------ */
-let currentScene = 'oneimage';
+let currentScene = 'ames';
 let showTrue = false;
 
 const btnAmes = document.getElementById('btn-ames');
@@ -532,40 +534,35 @@ function setCameraForCurrent() {
   if (currentScene === 'ames') {
     camera.position.copy(EYE);
     baseOrbitPos.set(8.5, 5, 10.5);
-    baseOrbitTarget.set(-1, 0.7, -4);
+    baseOrbitTarget.set(0, 1.5, -6); // on the eye's -z axis: initial view is the exact peephole view
     attachControls(baseOrbitTarget);
   } else {
     camera.position.copy(eyePos);
     baseOrbitPos.set(7, 4.5, 9);
-    baseOrbitTarget.set(0, 0.6, -3);
+    baseOrbitTarget.set(0, 1.35, -3); // on the eye's -z axis
     attachControls(baseOrbitTarget);
   }
   currentZoom = 1.0;
   document.getElementById('zoom-slider').value = 1;
   document.getElementById('zoom-val').textContent = '1.0×';
+  applyZoom();
 }
 
 function resetCamera() {
-  if (currentScene === 'ames') {
-    camera.position.copy(EYE);
-    camera.lookAt(EYE.x, EYE.y, EYE.z - 10);
-    controls.target.set(EYE.x, EYE.y, EYE.z - 10);
-  } else {
-    camera.position.copy(eyePos);
-    camera.lookAt(eyePos.x, eyePos.y, eyePos.z - 10);
-    controls.target.set(eyePos.x, eyePos.y, eyePos.z - 10);
-  }
+  camera.position.copy(currentScene === 'ames' ? EYE : eyePos);
+  controls.target.copy(baseOrbitTarget);
+  controls.update();
   currentZoom = 1.0;
   document.getElementById('zoom-slider').value = 1;
   document.getElementById('zoom-val').textContent = '1.0×';
+  applyZoom();
 }
 
+// FOV zoom: magnifies without moving the camera, so the projection
+// (and therefore the illusion) is preserved.
 function applyZoom() {
-  if (!controls) return;
-  const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-  const baseDist = baseOrbitPos.distanceTo(baseOrbitTarget);
-  const newDist = baseDist / currentZoom;
-  camera.position.copy(controls.target).add(direction.multiplyScalar(newDist));
+  camera.fov = 50 / currentZoom;
+  camera.updateProjectionMatrix();
 }
 
 function updateUI() {
@@ -578,13 +575,12 @@ function updateUI() {
 
   const orbitAmes = currentScene === 'ames';
   trueShapeGroup.visible = orbitAmes && showTrue;
-  peepholeMarker.visible = orbitAmes;
-  matCeil.opacity = orbitAmes ? 0.15 : 1; // fade ceiling to reveal the trapezoid plan
+  btnTrue.style.display = orbitAmes ? '' : 'none'; // true-shape reveal is an Ames-room feature
   amesGroup.visible = currentScene === 'ames';
   oneGroup.visible = currentScene === 'oneimage';
 
   document.getElementById('note-text').innerHTML = currentScene === 'ames'
-    ? 'The peephole view is the default camera position. Drag to orbit, scroll/zoom slider to zoom. ' +
+    ? 'The peephole view is the default camera position. Drag to orbit, right-drag to pan, Zoom slider to magnify. ' +
       '<b>Show true shape</b> reveals the trapezoid.'
     : 'Adjust size and distance until both objects cast the same retinal projection. ' +
       'Same image, different real objects — one image could be a thousand objects.';
@@ -637,6 +633,17 @@ document.getElementById('zoom-slider').oninput = function() {
 function animate() {
   requestAnimationFrame(animate);
   if (controls) controls.update();
+
+  // The truth is revealed as the camera leaves the peephole: ceiling fades
+  // out, and the eye/peephole markers appear only when viewed from outside.
+  if (currentScene === 'ames') {
+    const d = camera.position.distanceTo(EYE);
+    matCeil.opacity = d < 0.75 ? 1 : Math.max(0.15, 1.15 - d * 0.25);
+    peepholeMarker.visible = d > 0.75;
+  } else if (oneImageEyeIcon) {
+    oneImageEyeIcon.visible = camera.position.distanceTo(eyePos) > 0.75;
+  }
+
   renderer.render(scene, camera);
 }
 
