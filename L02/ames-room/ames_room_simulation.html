@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ames Room Optical Illusion Simulation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.5);
+      border-radius: 9999px;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+      margin-top: -6px;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+      border: 2px solid #ffffff;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 6px;
+      cursor: pointer;
+      background: #334155;
+      border-radius: 9999px;
+    }
+    .peephole-vignette {
+      box-shadow: inset 0 0 100px 40px rgba(0, 0, 0, 0.95), inset 0 0 200px 100px rgba(0, 0, 0, 0.85);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen relative overflow-hidden">
+
+  <!-- 3D Canvas Host Container -->
+  <div id="canvas-container" class="absolute inset-0 w-full h-full"></div>
+
+  <!-- Peephole Aperture Ring Overlay (Active in Peephole View) -->
+  <div id="peephole-overlay" class="absolute inset-0 pointer-events-none transition-opacity duration-700 opacity-90 peephole-vignette flex items-center justify-center">
+    <div class="w-[88vmin] h-[88vmin] rounded-full border-[10px] sm:border-[14px] border-amber-700/40 shadow-[0_0_90px_rgba(0,0,0,0.95)] pointer-events-none flex items-center justify-center">
+      <div class="w-full h-full rounded-full border-2 border-amber-400/20"></div>
+    </div>
+  </div>
+
+  <header class="absolute top-2 left-2 right-2 sm:top-4 sm:left-4 sm:right-4 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-3 pointer-events-none">
+    <!-- Title badge -->
+    <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl shadow-xl flex items-center justify-between sm:justify-start gap-2 sm:gap-3 pointer-events-auto">
+      <div class="flex items-center gap-2">
+        <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]"></div>
+        <div>
+          <h1 class="text-xs sm:text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+            Ames Room
+            <span class="text-[10px] sm:text-xs font-normal px-1.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">Planar</span>
+          </h1>
+          <p class="hidden sm:block text-xs text-slate-400">Flat planar walls & floor disguised as a standard rectangular room</p>
+        </div>
+      </div>
+      <button onclick="toggleInfoModal()" class="text-[11px] sm:hidden text-sky-400 hover:text-sky-300 flex items-center gap-1 underline underline-offset-2">
+        Info
+      </button>
+    </div>
+
+    <!-- View Mode Selector -->
+    <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/60 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl shadow-xl flex items-center gap-1 overflow-x-auto no-scrollbar pointer-events-auto">
+      <button id="btn-view-peephole" onclick="setCameraView('peephole')" class="whitespace-nowrap px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all bg-sky-500 text-white shadow-md shadow-sky-500/30 hover:bg-sky-400">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        <span>Peephole</span>
+      </button>
+
+      <button id="btn-view-top" onclick="setCameraView('top')" class="whitespace-nowrap px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-800">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        <span>Top View</span>
+      </button>
+
+      <button id="btn-view-iso" onclick="setCameraView('iso')" class="whitespace-nowrap px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-800">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <span>Isometric</span>
+      </button>
+
+      <button id="btn-view-free" onclick="setCameraView('free')" class="whitespace-nowrap px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-800">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span>Orbit 3D</span>
+      </button>
+    </div>
+  </header>
+
+  <aside id="controls-panel" class="absolute bottom-2 left-2 right-2 sm:right-auto sm:bottom-4 sm:left-4 z-20 sm:max-w-sm bg-slate-900/95 backdrop-blur-xl border border-slate-700/60 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-2xl transition-all duration-300 flex flex-col max-h-[75vh]">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-2 cursor-pointer select-none" onclick="toggleControlsCollapse()">
+      <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+        <span>Controls</span>
+        <span id="panel-collapsed-hint" class="hidden text-[10px] text-sky-400 font-normal ml-1">(Tap to expand)</span>
+      </span>
+      <div class="flex items-center gap-2">
+        <button onclick="event.stopPropagation(); toggleInfoModal();" class="hidden sm:inline-block text-xs text-sky-400 hover:text-sky-300 underline underline-offset-2">
+          Geometry Info
+        </button>
+        <button id="btn-collapse-icon" class="text-slate-400 hover:text-white p-0.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 transition">
+          <svg id="svg-collapse" class="w-4 h-4 transition-transform duration-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible Controls Body -->
+    <div id="controls-body" class="overflow-y-auto space-y-2.5 sm:space-y-3.5 mt-2.5 transition-all duration-300 pr-0.5">
+      <!-- Person Mode Toggle -->
+      <div class="grid grid-cols-2 gap-1.5 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+        <button id="btn-mode-two" onclick="setPersonMode('two')" class="py-1 sm:py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium text-center transition-all bg-slate-800 text-sky-300 border border-slate-700">
+          Two People
+        </button>
+        <button id="btn-mode-walk" onclick="setPersonMode('walk')" class="py-1 sm:py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium text-center transition-all text-slate-400 hover:text-white">
+          Walking Person
+        </button>
+      </div>
+
+      <!-- Walking Controls -->
+      <div id="walking-controls" class="space-y-1.5 sm:space-y-2 hidden bg-slate-950/40 p-2 rounded-xl border border-slate-800/80">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-300 text-[11px] font-medium">Position: Far ⇄ Near</span>
+          <button id="btn-play-walk" onclick="toggleWalkPlay()" class="px-2 py-0.5 rounded bg-sky-600/40 hover:bg-sky-500/60 text-sky-200 text-[11px] font-mono-code flex items-center gap-1 border border-sky-500/30">
+            <span id="walk-icon">▶</span> <span id="walk-text">Play</span>
+          </button>
+        </div>
+        <input id="walk-slider" type="range" min="0" max="1" step="0.005" value="0.0" oninput="onWalkSliderChange(this.value)" class="w-full">
+      </div>
+
+      <!-- Visibility Options -->
+      <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
+        <label class="flex items-center gap-2 cursor-pointer bg-slate-800/40 hover:bg-slate-800/80 p-1.5 sm:p-2 rounded-lg sm:rounded-xl border border-slate-800 transition">
+          <input type="checkbox" id="toggle-rays" onchange="toggleSightlines(this.checked)" class="rounded text-sky-500 focus:ring-0 bg-slate-900 border-slate-700 w-3.5 h-3.5">
+          <span class="text-slate-300">Sight Frustum</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer bg-slate-800/40 hover:bg-slate-800/80 p-1.5 sm:p-2 rounded-lg sm:rounded-xl border border-slate-800 transition">
+          <input type="checkbox" id="toggle-ceiling" onchange="toggleCeiling(this.checked)" checked class="rounded text-sky-500 focus:ring-0 bg-slate-900 border-slate-700 w-3.5 h-3.5">
+          <span class="text-slate-300">Ceiling Shell</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer bg-slate-800/40 hover:bg-slate-800/80 p-1.5 sm:p-2 rounded-lg sm:rounded-xl border border-slate-800 transition">
+          <input type="checkbox" id="toggle-frontwall" onchange="toggleFrontWall(this.checked)" class="rounded text-sky-500 focus:ring-0 bg-slate-900 border-slate-700 w-3.5 h-3.5">
+          <span class="text-slate-300">Peephole Wall</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer bg-slate-800/40 hover:bg-slate-800/80 p-1.5 sm:p-2 rounded-lg sm:rounded-xl border border-slate-800 transition">
+          <input type="checkbox" id="toggle-labels" onchange="toggleBadges(this.checked)" checked class="rounded text-sky-500 focus:ring-0 bg-slate-900 border-slate-700 w-3.5 h-3.5">
+          <span class="text-slate-300">Height Labels</span>
+        </label>
+      </div>
+
+      <!-- Geometry Dimension Metrics -->
+      <div class="hidden sm:block bg-slate-950/70 p-2 rounded-xl border border-slate-800 text-[11px] font-mono-code space-y-1 text-slate-400">
+        <div class="flex justify-between">
+          <span>Left Depth / Height:</span>
+          <span class="text-sky-300 font-semibold">Z = -5.0 m | 4.65 m</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Right Depth / Height:</span>
+          <span class="text-amber-300 font-semibold">Z = -0.6 m | 2.32 m</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="badge-container" class="absolute inset-0 pointer-events-none z-10">
+    <div id="badge-left" class="absolute -translate-x-1/2 -translate-y-full transition-transform duration-75">
+      <div class="bg-slate-900/90 backdrop-blur-md border border-sky-500/50 px-2 py-1 rounded-lg shadow-xl text-center">
+        <div class="text-[9px] uppercase font-bold text-sky-400 tracking-wider">Left Corner</div>
+        <div class="text-[11px] font-bold text-white">Real: 168 cm</div>
+        <div class="text-[9px] text-red-400 font-mono-code">Apparent: ~ 84 cm</div>
+      </div>
+      <div class="w-0.5 h-2.5 bg-sky-500/70 mx-auto"></div>
+    </div>
+
+    <div id="badge-right" class="absolute -translate-x-1/2 -translate-y-full transition-transform duration-75">
+      <div class="bg-slate-900/90 backdrop-blur-md border border-amber-500/50 px-2 py-1 rounded-lg shadow-xl text-center">
+        <div class="text-[9px] uppercase font-bold text-amber-400 tracking-wider">Right Corner</div>
+        <div class="text-[11px] font-bold text-white">Real: 168 cm</div>
+        <div class="text-[9px] text-emerald-400 font-mono-code">Apparent: ~ 168 cm</div>
+      </div>
+      <div class="w-0.5 h-2.5 bg-amber-500/70 mx-auto"></div>
+    </div>
+
+    <div id="badge-walker" class="absolute -translate-x-1/2 -translate-y-full transition-transform duration-75 hidden">
+      <div class="bg-slate-900/90 backdrop-blur-md border border-purple-500/50 px-2 py-1 rounded-lg shadow-xl text-center">
+        <div class="text-[9px] uppercase font-bold text-purple-400 tracking-wider">Walker</div>
+        <div class="text-[11px] font-bold text-white">Height: 168 cm</div>
+        <div id="badge-walker-apparent" class="text-[9px] text-purple-300 font-mono-code">Apparent: 84 cm</div>
+      </div>
+      <div class="w-0.5 h-2.5 bg-purple-500/70 mx-auto"></div>
+    </div>
+  </div>
+
+  <!-- Educational Info Dialog -->
+  <div id="info-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+    <div class="bg-slate-900 border border-slate-700 max-w-md w-full rounded-2xl p-5 shadow-2xl space-y-3.5 text-slate-300">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <span>🏛️</span> The Planar Geometry of the Ames Room
+        </h3>
+        <button onclick="toggleInfoModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="text-xs leading-relaxed space-y-2.5">
+        <p>
+          In this simulation, <strong>every wall, floor, and ceiling surface is a 100% straight, flat plane</strong>.
+        </p>
+        <div class="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+          <p><strong class="text-sky-300">Flat Slanted Floor:</strong> Tilted downward toward the left and upward toward the right.</p>
+          <p><strong class="text-emerald-300">Flat Slanted Ceiling:</strong> Slopes upward toward the left and downward toward the right.</p>
+          <p><strong class="text-amber-300">Flat Angled Back Wall:</strong> The left corner is twice as far from the eye as the right corner.</p>
+        </div>
+        <p class="text-slate-400">
+          Switch to <strong>Top View</strong> or <strong>Orbit 3D</strong> to see the real trapezoidal prism shape!
+        </p>
+      </div>
+      <div class="pt-2 flex justify-end">
+        <button onclick="toggleInfoModal()" class="px-4 py-1.5 bg-sky-500 hover:bg-sky-400 text-white font-semibold text-xs rounded-xl shadow-lg shadow-sky-500/20">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let scene, camera, renderer, controls;
+    let peepholeCameraPos = new THREE.Vector3(0, 0.2, 3.8);
+    let peepholeTargetPos = new THREE.Vector3(0, 0.2, -1.5);
+    let currentViewMode = 'peephole';
+    let personMode = 'two';
+    let isWalkingPlaying = false;
+    let walkProgress = 0.0;
+    let walkDirection = 1;
+    let isControlsCollapsed = false;
+
+    let roomGroup;
+    let ceilingMesh, frontWallMesh, sightlinesGroup;
+    let personLeftGroup, personRightGroup, walkingPersonGroup;
+
+    let targetCameraPosition = new THREE.Vector3().copy(peepholeCameraPos);
+    let targetControlsTarget = new THREE.Vector3().copy(peepholeTargetPos);
+    let isCameraTransitioning = false;
+
+    let clickSynth, footstepSynth;
+
+    function initAudio() {
+      try {
+        clickSynth = new Tone.MembraneSynth({
+          pitchDecay: 0.01,
+          octaves: 2,
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.04 }
+        }).toDestination();
+        clickSynth.volume.value = -20;
+
+        footstepSynth = new Tone.NoiseSynth({
+          noise: { type: "white" },
+          envelope: { attack: 0.005, decay: 0.04, sustain: 0 }
+        }).toDestination();
+        footstepSynth.volume.value = -26;
+      } catch (e) {}
+    }
+
+    function playClickSound() {
+      try {
+        if (Tone.context && Tone.context.state !== 'running') Tone.start();
+        if (clickSynth) clickSynth.triggerAttackRelease("C3", "32n");
+      } catch (e) {}
+    }
+
+    function playFootstepSound() {
+      try {
+        if (Tone.context && Tone.context.state !== 'running') Tone.start();
+        if (footstepSynth) footstepSynth.triggerAttackRelease("16n");
+      } catch (e) {}
+    }
+
+    const EYE = new THREE.Vector3(0, 0.2, 3.8);
+
+    const APP_X_MIN = -1.8, APP_X_MAX = 1.8;
+    const APP_Y_MIN = -1.2, APP_Y_MAX = 1.6;
+    const APP_Z_FRONT = 1.2, APP_Z_BACK = -1.5;
+
+    // Back wall plane equation: z = K_BACK * x + Z0_BACK
+    const K_BACK = 0.981481;
+    const Z0_BACK = -2.066667;
+
+    // Floor plane equation: y = M_FLOOR_X * x + M_FLOOR_Z * z + Y0_FLOOR
+    const M_FLOOR_X = 0.2142857;
+    const M_FLOOR_Z = 0.045826;
+    const Y0_FLOOR = -1.2550;
+
+    // Ceiling plane equation: y = M_CEIL_X * x + M_CEIL_Z * z + Y0_CEIL
+    const M_CEIL_X = -0.2142857;
+    const M_CEIL_Z = -0.045826;
+    const Y0_CEIL = 1.6550;
+
+    function intersectRayWithBackWall(appX, appY) {
+      const Dx = appX - EYE.x;
+      const Dy = appY - EYE.y;
+      const Dz = APP_Z_BACK - EYE.z;
+      const t = (Z0_BACK - EYE.z) / (Dz - K_BACK * Dx);
+      return new THREE.Vector3(EYE.x + t * Dx, EYE.y + t * Dy, EYE.z + t * Dz);
+    }
+
+    function intersectRayWithFloor(appX, appZ) {
+      const Dx = appX - EYE.x;
+      const Dy = APP_Y_MIN - EYE.y;
+      const Dz = appZ - EYE.z;
+      const denom = Dy - M_FLOOR_X * Dx - M_FLOOR_Z * Dz;
+      const numer = M_FLOOR_X * EYE.x + M_FLOOR_Z * EYE.z + Y0_FLOOR - EYE.y;
+      const t = numer / denom;
+      return new THREE.Vector3(EYE.x + t * Dx, EYE.y + t * Dy, EYE.z + t * Dz);
+    }
+
+    function intersectRayWithCeiling(appX, appZ) {
+      const Dx = appX - EYE.x;
+      const Dy = APP_Y_MAX - EYE.y;
+      const Dz = appZ - EYE.z;
+      const denom = Dy - M_CEIL_X * Dx - M_CEIL_Z * Dz;
+      const numer = M_CEIL_X * EYE.x + M_CEIL_Z * EYE.z + Y0_CEIL - EYE.y;
+      const t = numer / denom;
+      return new THREE.Vector3(EYE.x + t * Dx, EYE.y + t * Dy, EYE.z + t * Dz);
+    }
+
+    const V_BL = intersectRayWithBackWall(APP_X_MIN, APP_Y_MIN);
+    const V_BR = intersectRayWithBackWall(APP_X_MAX, APP_Y_MIN);
+    const V_TR = intersectRayWithBackWall(APP_X_MAX, APP_Y_MAX);
+    const V_TL = intersectRayWithBackWall(APP_X_MIN, APP_Y_MAX);
+
+    const V_FL = intersectRayWithFloor(APP_X_MIN, APP_Z_FRONT);
+    const V_FR = intersectRayWithFloor(APP_X_MAX, APP_Z_FRONT);
+    const V_CFL = intersectRayWithCeiling(APP_X_MIN, APP_Z_FRONT);
+    const V_CFR = intersectRayWithCeiling(APP_X_MAX, APP_Z_FRONT);
+
+    function createFloorTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      const tilesX = 10;
+      const tilesY = 10;
+      const tileW = canvas.width / tilesX;
+      const tileH = canvas.height / tilesY;
+
+      for (let y = 0; y < tilesY; y++) {
+        for (let x = 0; x < tilesX; x++) {
+          const isEven = (x + y) % 2 === 0;
+          ctx.fillStyle = isEven ? '#f1f5f9' : '#1e293b';
+          ctx.fillRect(x * tileW, y * tileH, tileW, tileH);
+
+          ctx.strokeStyle = isEven ? '#cbd5e1' : '#0f172a';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(x * tileW + 2, y * tileH + 2, tileW - 4, tileH - 4);
+        }
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      return texture;
+    }
+
+    function createBackWallTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#f1f5f9';
+      for (let i = 0; i < canvas.width; i += 32) {
+        ctx.fillRect(i, 0, 16, canvas.height);
+      }
+
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(0, 940, canvas.width, 84);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(0, 940, canvas.width, 10);
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(0, 0, canvas.width, 40);
+
+      function drawWindow(startX, startY, width, height) {
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(startX, startY, width, height);
+
+        const padding = 16;
+        const innerW = width - padding * 2;
+        const innerH = height - padding * 2;
+
+        const grad = ctx.createLinearGradient(startX, startY, startX, startY + height);
+        grad.addColorStop(0, '#60a5fa');
+        grad.addColorStop(1, '#bfdbfe');
+        ctx.fillStyle = grad;
+        ctx.fillRect(startX + padding, startY + padding, innerW, innerH);
+
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(startX + width / 2 - 5, startY + padding, 10, innerH);
+        ctx.fillRect(startX + padding, startY + height / 2 - 5, innerW, 10);
+
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(startX - 10, startY + height - 10, width + 20, 20);
+      }
+
+      drawWindow(120, 260, 220, 420);
+      drawWindow(684, 260, 220, 420);
+
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(440, 360, 144, 180);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(448, 368, 128, 164);
+
+      const artGrad = ctx.createLinearGradient(448, 368, 448 + 128, 368 + 164);
+      artGrad.addColorStop(0, '#f97316');
+      artGrad.addColorStop(0.5, '#ec4899');
+      artGrad.addColorStop(1, '#8b5cf6');
+      ctx.fillStyle = artGrad;
+      ctx.fillRect(452, 372, 120, 156);
+
+      ctx.beginPath();
+      ctx.arc(512, 180, 45, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#1e293b';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(512, 180);
+      ctx.lineTo(512, 150);
+      ctx.moveTo(512, 180);
+      ctx.lineTo(535, 180);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#0f172a';
+      ctx.stroke();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      return texture;
+    }
+
+    function createSideWallTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(0, 0, 512, 512);
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(0, 320, 512, 192);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(0, 310, 512, 10);
+
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 2;
+      for (let x = 32; x < 512; x += 64) {
+        ctx.strokeRect(x, 330, 48, 160);
+      }
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    function createPlanarGridMesh(uSteps, vSteps, evaluatePointOnPlane, material) {
+      const geometry = new THREE.BufferGeometry();
+      const vertices = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let j = 0; j <= vSteps; j++) {
+        const v = j / vSteps;
+        for (let i = 0; i <= uSteps; i++) {
+          const u = i / uSteps;
+          const pt = evaluatePointOnPlane(u, v);
+          vertices.push(pt.x, pt.y, pt.z);
+          uvs.push(u, v);
+        }
+      }
+
+      for (let j = 0; j < vSteps; j++) {
+        for (let i = 0; i < uSteps; i++) {
+          const a = j * (uSteps + 1) + i;
+          const b = a + 1;
+          const c = a + (uSteps + 1);
+          const d = c + 1;
+          indices.push(a, c, b);
+          indices.push(b, c, d);
+        }
+      }
+
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function buildAmesRoom() {
+      roomGroup = new THREE.Group();
+
+      const floorMat = new THREE.MeshStandardMaterial({
+        map: createFloorTexture(),
+        roughness: 0.35,
+        metalness: 0.1,
+        side: THREE.DoubleSide
+      });
+      const floorMesh = createPlanarGridMesh(16, 16, (u, v) => {
+        const appX = APP_X_MIN + u * (APP_X_MAX - APP_X_MIN);
+        const appZ = APP_Z_FRONT + (1 - v) * (APP_Z_BACK - APP_Z_FRONT);
+        return intersectRayWithFloor(appX, appZ);
+      }, floorMat);
+      roomGroup.add(floorMesh);
+
+      const backWallMat = new THREE.MeshStandardMaterial({
+        map: createBackWallTexture(),
+        roughness: 0.7,
+        side: THREE.DoubleSide
+      });
+      const backWallMesh = createPlanarGridMesh(16, 16, (u, v) => {
+        const appX = APP_X_MIN + u * (APP_X_MAX - APP_X_MIN);
+        const appY = APP_Y_MIN + v * (APP_Y_MAX - APP_Y_MIN);
+        return intersectRayWithBackWall(appX, appY);
+      }, backWallMat);
+      roomGroup.add(backWallMesh);
+
+      const leftWallMat = new THREE.MeshStandardMaterial({
+        map: createSideWallTexture(),
+        roughness: 0.75,
+        side: THREE.DoubleSide
+      });
+      const leftWallMesh = createPlanarGridMesh(10, 10, (u, v) => {
+        const bottomPt = new THREE.Vector3().lerpVectors(V_FL, V_BL, u);
+        const topPt = new THREE.Vector3().lerpVectors(V_CFL, V_TL, u);
+        return new THREE.Vector3().lerpVectors(bottomPt, topPt, v);
+      }, leftWallMat);
+      roomGroup.add(leftWallMesh);
+
+      const rightWallMat = new THREE.MeshStandardMaterial({
+        map: createSideWallTexture(),
+        roughness: 0.75,
+        side: THREE.DoubleSide
+      });
+      const rightWallMesh = createPlanarGridMesh(10, 10, (u, v) => {
+        const bottomPt = new THREE.Vector3().lerpVectors(V_FR, V_BR, u);
+        const topPt = new THREE.Vector3().lerpVectors(V_CFR, V_TR, u);
+        return new THREE.Vector3().lerpVectors(bottomPt, topPt, v);
+      }, rightWallMat);
+      roomGroup.add(rightWallMesh);
+
+      const ceilingMat = new THREE.MeshStandardMaterial({
+        color: 0xf8fafc,
+        roughness: 0.9,
+        side: THREE.DoubleSide
+      });
+      ceilingMesh = createPlanarGridMesh(16, 16, (u, v) => {
+        const appX = APP_X_MIN + u * (APP_X_MAX - APP_X_MIN);
+        const appZ = APP_Z_FRONT + v * (APP_Z_BACK - APP_Z_FRONT);
+        return intersectRayWithCeiling(appX, appZ);
+      }, ceilingMat);
+      roomGroup.add(ceilingMesh);
+
+      const frontWallMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.6,
+        side: THREE.DoubleSide
+      });
+      frontWallMesh = createPlanarGridMesh(8, 8, (u, v) => {
+        const bottomPt = new THREE.Vector3().lerpVectors(V_FL, V_FR, u);
+        const topPt = new THREE.Vector3().lerpVectors(V_CFL, V_CFR, u);
+        return new THREE.Vector3().lerpVectors(bottomPt, topPt, v);
+      }, frontWallMat);
+      frontWallMesh.visible = false;
+      roomGroup.add(frontWallMesh);
+
+      const peepholeRingGeo = new THREE.TorusGeometry(0.12, 0.025, 16, 32);
+      const peepholeMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.3 });
+      const peepholeRing = new THREE.Mesh(peepholeRingGeo, peepholeMat);
+      peepholeRing.position.copy(EYE);
+      peepholeRing.position.z += 0.02;
+      roomGroup.add(peepholeRing);
+
+      const groundGeo = new THREE.PlaneGeometry(30, 30);
+      const groundMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.9 });
+      const groundPlane = new THREE.Mesh(groundGeo, groundMat);
+      groundPlane.rotation.x = -Math.PI / 2;
+      groundPlane.position.y = -2.8;
+      groundPlane.receiveShadow = true;
+      roomGroup.add(groundPlane);
+
+      const wireframeMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, opacity: 0.8, transparent: true, linewidth: 2 });
+      const floorOutlineGeo = new THREE.BufferGeometry().setFromPoints([
+        V_FL.clone().add(new THREE.Vector3(0, 0.01, 0)),
+        V_FR.clone().add(new THREE.Vector3(0, 0.01, 0)),
+        V_BR.clone().add(new THREE.Vector3(0, 0.01, 0)),
+        V_BL.clone().add(new THREE.Vector3(0, 0.01, 0)),
+        V_FL.clone().add(new THREE.Vector3(0, 0.01, 0))
+      ]);
+      const floorOutline = new THREE.Line(floorOutlineGeo, wireframeMat);
+      roomGroup.add(floorOutline);
+
+      scene.add(roomGroup);
+    }
+
+    function createHumanModel(accentColor, shirtColor) {
+      const group = new THREE.Group();
+
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbcfe8, roughness: 0.6 });
+      const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.5 });
+      const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+      const shoeMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.6 });
+
+      const bodyGroup = new THREE.Group();
+      group.add(bodyGroup);
+
+      const shoeGeo = new THREE.BoxGeometry(0.12, 0.08, 0.22);
+      const leftShoe = new THREE.Mesh(shoeGeo, shoeMat);
+      leftShoe.position.set(-0.12, 0.04, 0.02);
+      leftShoe.castShadow = true;
+      bodyGroup.add(leftShoe);
+
+      const rightShoe = new THREE.Mesh(shoeGeo, shoeMat);
+      rightShoe.position.set(0.12, 0.04, 0.02);
+      rightShoe.castShadow = true;
+      bodyGroup.add(rightShoe);
+
+      const legGeo = new THREE.CylinderGeometry(0.065, 0.055, 0.68, 16);
+      const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+      leftLeg.position.set(-0.12, 0.42, 0);
+      leftLeg.castShadow = true;
+      bodyGroup.add(leftLeg);
+
+      const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+      rightLeg.position.set(0.12, 0.42, 0);
+      rightLeg.castShadow = true;
+      bodyGroup.add(rightLeg);
+
+      const pelvisGeo = new THREE.BoxGeometry(0.36, 0.16, 0.22);
+      const pelvis = new THREE.Mesh(pelvisGeo, pantsMat);
+      pelvis.position.set(0, 0.84, 0);
+      pelvis.castShadow = true;
+      bodyGroup.add(pelvis);
+
+      const torsoGeo = new THREE.CylinderGeometry(0.20, 0.17, 0.46, 16);
+      const torso = new THREE.Mesh(torsoGeo, shirtMat);
+      torso.position.set(0, 1.13, 0);
+      torso.castShadow = true;
+      bodyGroup.add(torso);
+
+      const neckGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.08, 16);
+      const neck = new THREE.Mesh(neckGeo, skinMat);
+      neck.position.set(0, 1.39, 0);
+      bodyGroup.add(neck);
+
+      const headGeo = new THREE.SphereGeometry(0.13, 24, 24);
+      const head = new THREE.Mesh(headGeo, skinMat);
+      head.position.set(0, 1.54, 0);
+      head.castShadow = true;
+      bodyGroup.add(head);
+
+      const hairGeo = new THREE.SphereGeometry(0.135, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.55);
+      const hair = new THREE.Mesh(hairGeo, hairMat);
+      hair.position.set(0, 1.56, 0);
+      bodyGroup.add(hair);
+
+      const armGeo = new THREE.CylinderGeometry(0.045, 0.04, 0.50, 16);
+      const leftArm = new THREE.Mesh(armGeo, shirtMat);
+      leftArm.position.set(-0.25, 1.10, 0);
+      leftArm.rotation.z = 0.08;
+      leftArm.castShadow = true;
+      bodyGroup.add(leftArm);
+
+      const rightArm = new THREE.Mesh(armGeo, shirtMat);
+      rightArm.position.set(0.25, 1.10, 0);
+      rightArm.rotation.z = -0.08;
+      rightArm.castShadow = true;
+      bodyGroup.add(rightArm);
+
+      const shadowGeo = new THREE.CircleGeometry(0.35, 24);
+      const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, opacity: 0.35, transparent: true });
+      const shadowBlob = new THREE.Mesh(shadowGeo, shadowMat);
+      shadowBlob.rotation.x = -Math.PI / 2;
+      shadowBlob.position.y = 0.005;
+      group.add(shadowBlob);
+
+      group.userData = { leftLeg, rightLeg, leftArm, rightArm, bodyGroup, height: 1.68 };
+      return group;
+    }
+
+    function setupCharacters() {
+      personLeftGroup = createHumanModel(0xd97706, 0x0284c7);
+      const leftBackFloorPos = new THREE.Vector3().lerpVectors(V_BL, V_BR, 0.16);
+      personLeftGroup.position.copy(leftBackFloorPos);
+      personLeftGroup.lookAt(new THREE.Vector3(EYE.x, personLeftGroup.position.y, EYE.z));
+      scene.add(personLeftGroup);
+
+      personRightGroup = createHumanModel(0x475569, 0xd97706);
+      const rightBackFloorPos = new THREE.Vector3().lerpVectors(V_BL, V_BR, 0.84);
+      personRightGroup.position.copy(rightBackFloorPos);
+      personRightGroup.lookAt(new THREE.Vector3(EYE.x, personRightGroup.position.y, EYE.z));
+      scene.add(personRightGroup);
+
+      walkingPersonGroup = createHumanModel(0x9333ea, 0x10b981);
+      walkingPersonGroup.visible = false;
+      scene.add(walkingPersonGroup);
+
+      setupSightlines();
+    }
+
+    function setupSightlines() {
+      sightlinesGroup = new THREE.Group();
+      sightlinesGroup.visible = false;
+
+      const rayMatLeft = new THREE.LineDashedMaterial({
+        color: 0x38bdf8,
+        dashSize: 0.15,
+        gapSize: 0.08,
+        transparent: true,
+        opacity: 0.85
+      });
+
+      const rayMatRight = new THREE.LineDashedMaterial({
+        color: 0xf59e0b,
+        dashSize: 0.15,
+        gapSize: 0.08,
+        transparent: true,
+        opacity: 0.85
+      });
+
+      function createRayLine(start, end, material) {
+        const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+        const line = new THREE.Line(geo, material);
+        line.computeLineDistances();
+        return line;
+      }
+
+      const leftHeadPos = personLeftGroup.position.clone().add(new THREE.Vector3(0, 1.68, 0));
+      const leftFootPos = personLeftGroup.position.clone();
+      sightlinesGroup.add(createRayLine(EYE, leftHeadPos, rayMatLeft));
+      sightlinesGroup.add(createRayLine(EYE, leftFootPos, rayMatLeft));
+
+      const rightHeadPos = personRightGroup.position.clone().add(new THREE.Vector3(0, 1.68, 0));
+      const rightFootPos = personRightGroup.position.clone();
+      sightlinesGroup.add(createRayLine(EYE, rightHeadPos, rayMatRight));
+      sightlinesGroup.add(createRayLine(EYE, rightFootPos, rayMatRight));
+
+      const eyeMarkerGeo = new THREE.SphereGeometry(0.04, 16, 16);
+      const eyeMarkerMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+      const eyeMarker = new THREE.Mesh(eyeMarkerGeo, eyeMarkerMat);
+      eyeMarker.position.copy(EYE);
+      sightlinesGroup.add(eyeMarker);
+
+      scene.add(sightlinesGroup);
+    }
+
+    function initScene() {
+      const container = document.getElementById('canvas-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x020617);
+      scene.fog = new THREE.FogExp2(0x020617, 0.035);
+
+      camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 100);
+      camera.position.copy(peepholeCameraPos);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.target.copy(peepholeTargetPos);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.07;
+      controls.maxDistance = 22;
+      controls.minDistance = 0.5;
+
+      controls.addEventListener('start', () => {
+        if (currentViewMode === 'peephole') {
+          updateViewButtons('free');
+          currentViewMode = 'free';
+          document.getElementById('peephole-overlay').style.opacity = '0';
+        }
+      });
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+      scene.add(ambientLight);
+
+      const roomSpot = new THREE.SpotLight(0xffedd5, 1.6, 18, Math.PI / 3, 0.35, 1.2);
+      roomSpot.position.set(0, 2.4, -0.5);
+      roomSpot.castShadow = true;
+      roomSpot.shadow.mapSize.width = 1024;
+      roomSpot.shadow.mapSize.height = 1024;
+      roomSpot.shadow.bias = -0.001;
+      scene.add(roomSpot);
+
+      const windowLight = new THREE.DirectionalLight(0xbfdbfe, 1.1);
+      windowLight.position.set(-2, 4, -7);
+      windowLight.target.position.set(0, 0, 0);
+      scene.add(windowLight);
+      scene.add(windowLight.target);
+
+      const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      fillLight.position.set(0, 1.5, 4);
+      scene.add(fillLight);
+
+      buildAmesRoom();
+      setupCharacters();
+      initAudio();
+
+      if (window.innerWidth < 640) {
+        isControlsCollapsed = true;
+        applyControlsCollapseState();
+      }
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('canvas-container');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+
+    function setCameraView(mode) {
+      playClickSound();
+      currentViewMode = mode;
+      updateViewButtons(mode);
+
+      const overlay = document.getElementById('peephole-overlay');
+
+      if (mode === 'peephole') {
+        targetCameraPosition.copy(peepholeCameraPos);
+        targetControlsTarget.copy(peepholeTargetPos);
+        isCameraTransitioning = true;
+        controls.enabled = false;
+        overlay.style.opacity = '0.9';
+      } else {
+        controls.enabled = true;
+        overlay.style.opacity = '0';
+
+        if (mode === 'top') {
+          targetCameraPosition.set(0, 10.5, -1.8);
+          targetControlsTarget.set(0, -1.0, -1.8);
+          isCameraTransitioning = true;
+        } else if (mode === 'iso') {
+          targetCameraPosition.set(5.5, 4.0, 3.5);
+          targetControlsTarget.set(-0.5, 0.0, -2.0);
+          isCameraTransitioning = true;
+        } else if (mode === 'free') {
+          isCameraTransitioning = false;
+        }
+      }
+    }
+
+    function updateViewButtons(activeMode) {
+      const modes = ['peephole', 'top', 'iso', 'free'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`btn-view-${m}`);
+        if (!btn) return;
+        if (m === activeMode) {
+          btn.className = "whitespace-nowrap px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all bg-sky-500 text-white shadow-md shadow-sky-500/30";
+        } else {
+          btn.className = "whitespace-nowrap px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold flex items-center gap-1 sm:gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-800";
+        }
+      });
+    }
+
+    function toggleControlsCollapse() {
+      playClickSound();
+      isControlsCollapsed = !isControlsCollapsed;
+      applyControlsCollapseState();
+    }
+
+    function applyControlsCollapseState() {
+      const body = document.getElementById('controls-body');
+      const hint = document.getElementById('panel-collapsed-hint');
+      const svgCollapse = document.getElementById('svg-collapse');
+
+      if (isControlsCollapsed) {
+        body.classList.add('hidden');
+        hint.classList.remove('hidden');
+        if (svgCollapse) svgCollapse.style.transform = 'rotate(180deg)';
+      } else {
+        body.classList.remove('hidden');
+        hint.classList.add('hidden');
+        if (svgCollapse) svgCollapse.style.transform = 'rotate(0deg)';
+      }
+    }
+
+    function setPersonMode(mode) {
+      playClickSound();
+      personMode = mode;
+
+      const btnTwo = document.getElementById('btn-mode-two');
+      const btnWalk = document.getElementById('btn-mode-walk');
+      const walkingControls = document.getElementById('walking-controls');
+
+      if (mode === 'two') {
+        btnTwo.className = "py-1 sm:py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium text-center transition-all bg-slate-800 text-sky-300 border border-slate-700";
+        btnWalk.className = "py-1 sm:py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium text-center transition-all text-slate-400 hover:text-white";
+        walkingControls.classList.add('hidden');
+
+        personLeftGroup.visible = true;
+        personRightGroup.visible = true;
+        walkingPersonGroup.visible = false;
+        isWalkingPlaying = false;
+        document.getElementById('walk-icon').innerText = '▶';
+        document.getElementById('walk-text').innerText = 'Play';
+      } else {
+        btnWalk.className = "py-1 sm:py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium text-center transition-all bg-slate-800 text-sky-300 border border-slate-700";
+        btnTwo.className = "py-1 sm:py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-medium text-center transition-all text-slate-400 hover:text-white";
+        walkingControls.classList.remove('hidden');
+
+        personLeftGroup.visible = false;
+        personRightGroup.visible = false;
+        walkingPersonGroup.visible = true;
+        updateWalkingPerson(walkProgress);
+      }
+    }
+
+    function toggleWalkPlay() {
+      playClickSound();
+      isWalkingPlaying = !isWalkingPlaying;
+      document.getElementById('walk-icon').innerText = isWalkingPlaying ? '⏸' : '▶';
+      document.getElementById('walk-text').innerText = isWalkingPlaying ? 'Pause' : 'Play';
+    }
+
+    function onWalkSliderChange(val) {
+      walkProgress = parseFloat(val);
+      updateWalkingPerson(walkProgress);
+    }
+
+    function updateWalkingPerson(progress) {
+      const u = 0.15 + progress * 0.70;
+      const pos = new THREE.Vector3().lerpVectors(V_BL, V_BR, u);
+
+      walkingPersonGroup.position.copy(pos);
+
+      const forwardAngle = walkDirection > 0 ? Math.PI / 2 : -Math.PI / 2;
+      walkingPersonGroup.rotation.y = forwardAngle;
+
+      const apparentHeightCm = Math.round(84 + progress * 84);
+      const walkerBadge = document.getElementById('badge-walker-apparent');
+      if (walkerBadge) {
+        walkerBadge.innerText = `Apparent: ~ ${apparentHeightCm} cm`;
+      }
+    }
+
+    function toggleSightlines(checked) {
+      playClickSound();
+      if (sightlinesGroup) sightlinesGroup.visible = checked;
+    }
+
+    function toggleCeiling(checked) {
+      playClickSound();
+      if (ceilingMesh) ceilingMesh.visible = checked;
+    }
+
+    function toggleFrontWall(checked) {
+      playClickSound();
+      if (frontWallMesh) frontWallMesh.visible = checked;
+    }
+
+    function toggleBadges(checked) {
+      playClickSound();
+      const container = document.getElementById('badge-container');
+      if (container) container.style.display = checked ? 'block' : 'none';
+    }
+
+    function toggleInfoModal() {
+      playClickSound();
+      const modal = document.getElementById('info-modal');
+      const isVisible = modal.classList.contains('opacity-100');
+      if (isVisible) {
+        modal.classList.remove('opacity-100', 'pointer-events-auto');
+        modal.classList.add('opacity-0', 'pointer-events-none');
+      } else {
+        modal.classList.remove('opacity-0', 'pointer-events-none');
+        modal.classList.add('opacity-100', 'pointer-events-auto');
+      }
+    }
+
+    function toScreenPosition(objPosition, camera, renderer) {
+      const vector = objPosition.clone();
+      const widthHalf = 0.5 * renderer.domElement.clientWidth;
+      const heightHalf = 0.5 * renderer.domElement.clientHeight;
+
+      vector.project(camera);
+
+      if (vector.z > 1.0) {
+        return { x: -9999, y: -9999, visible: false };
+      }
+
+      return {
+        x: (vector.x * widthHalf) + widthHalf,
+        y: -(vector.y * heightHalf) + heightHalf,
+        visible: true
+      };
+    }
+
+    function updateBadges() {
+      if (personMode === 'two') {
+        document.getElementById('badge-left').style.display = 'block';
+        document.getElementById('badge-right').style.display = 'block';
+        document.getElementById('badge-walker').style.display = 'none';
+
+        if (personLeftGroup && personRightGroup) {
+          const leftHead = personLeftGroup.position.clone().add(new THREE.Vector3(0, 1.8, 0));
+          const leftScreen = toScreenPosition(leftHead, camera, renderer);
+          const badgeL = document.getElementById('badge-left');
+          badgeL.style.transform = `translate(${leftScreen.x}px, ${leftScreen.y}px)`;
+          badgeL.style.opacity = leftScreen.visible ? '1' : '0';
+
+          const rightHead = personRightGroup.position.clone().add(new THREE.Vector3(0, 1.8, 0));
+          const rightScreen = toScreenPosition(rightHead, camera, renderer);
+          const badgeR = document.getElementById('badge-right');
+          badgeR.style.transform = `translate(${rightScreen.x}px, ${rightScreen.y}px)`;
+          badgeR.style.opacity = rightScreen.visible ? '1' : '0';
+        }
+      } else {
+        document.getElementById('badge-left').style.display = 'none';
+        document.getElementById('badge-right').style.display = 'none';
+        document.getElementById('badge-walker').style.display = 'block';
+
+        if (walkingPersonGroup) {
+          const walkerHead = walkingPersonGroup.position.clone().add(new THREE.Vector3(0, 1.8, 0));
+          const walkerScreen = toScreenPosition(walkerHead, camera, renderer);
+          const badgeW = document.getElementById('badge-walker');
+          badgeW.style.transform = `translate(${walkerScreen.x}px, ${walkerScreen.y}px)`;
+          badgeW.style.opacity = walkerScreen.visible ? '1' : '0';
+        }
+      }
+    }
+
+    let clock = new THREE.Clock();
+    let stepTimer = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const delta = clock.getDelta();
+      const time = clock.getElapsedTime();
+
+      if (isCameraTransitioning) {
+        camera.position.lerp(targetCameraPosition, 0.08);
+        controls.target.lerp(targetControlsTarget, 0.08);
+
+        if (camera.position.distanceTo(targetCameraPosition) < 0.02 && controls.target.distanceTo(targetControlsTarget) < 0.02) {
+          camera.position.copy(targetCameraPosition);
+          controls.target.copy(targetControlsTarget);
+          isCameraTransitioning = false;
+        }
+      }
+
+      controls.update();
+
+      if (personMode === 'walk') {
+        if (isWalkingPlaying) {
+          const speed = 0.22;
+          walkProgress += walkDirection * speed * delta;
+
+          if (walkProgress >= 1.0) {
+            walkProgress = 1.0;
+            walkDirection = -1;
+          } else if (walkProgress <= 0.0) {
+            walkProgress = 0.0;
+            walkDirection = 1;
+          }
+
+          document.getElementById('walk-slider').value = walkProgress.toFixed(3);
+          updateWalkingPerson(walkProgress);
+
+          const swing = Math.sin(time * 8) * 0.45;
+          const { leftLeg, rightLeg, leftArm, rightArm, bodyGroup } = walkingPersonGroup.userData;
+          leftLeg.rotation.x = swing;
+          rightLeg.rotation.x = -swing;
+          leftArm.rotation.x = -swing * 0.8;
+          rightArm.rotation.x = swing * 0.8;
+          bodyGroup.position.y = Math.abs(Math.sin(time * 8)) * 0.04;
+
+          stepTimer += delta;
+          if (stepTimer > 0.38) {
+            playFootstepSound();
+            stepTimer = 0;
+          }
+        } else {
+          const { leftLeg, rightLeg, leftArm, rightArm, bodyGroup } = walkingPersonGroup.userData;
+          leftLeg.rotation.x = 0;
+          rightLeg.rotation.x = 0;
+          leftArm.rotation.x = 0;
+          rightArm.rotation.x = 0;
+          bodyGroup.position.y = 0;
+        }
+      }
+
+      updateBadges();
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function() {
+      initScene();
+      animate();
+    };
+  </script>
+</body>
+</html>
