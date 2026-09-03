@@ -80,6 +80,9 @@
     <button id="btn-task" class="active">Task View</button>
     <button id="btn-inspect">Inspect 3D</button>
   </div>
+  <button id="btn-reset-cam">Reset camera</button>
+  <label id="zoom-label">Zoom <span id="zoom-val" class="value">1.0×</span></label>
+  <input type="range" id="zoom-slider" min="0.3" max="3" step="0.05" value="1">
 
   <p class="note" id="feedback">Press Start to begin.</p>
 </div>
@@ -110,6 +113,9 @@ let startTime = 0, solved = false;
 let results = [];
 let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2();
+let taskCameraPos = new THREE.Vector3();
+let taskTarget = new THREE.Vector3();
+let currentZoom = 1.0;
 
 const MAX_MS = 30000;
 const SCENES = [];
@@ -396,10 +402,16 @@ function loadScene(idx) {
     new THREE.Vector3(0, 1.8, 5.5),
     new THREE.Vector3(0, 1.9, 5.0)
   ];
-  camera.position.copy(taskPos[idx]);
-  camera.lookAt(0, 1.4, -3);
-  controls.target.set(0, 1.4, -3);
+  const lookAt = new THREE.Vector3(0, 1.4, -3);
+  taskCameraPos.copy(taskPos[idx]);
+  taskTarget.copy(lookAt);
+  camera.position.copy(taskCameraPos);
+  camera.lookAt(taskTarget);
+  controls.target.copy(taskTarget);
   controls.update();
+  currentZoom = 1.0;
+  document.getElementById('zoom-slider').value = 1;
+  document.getElementById('zoom-val').textContent = '1.0×';
 }
 
 function setConfigA() { stateA = true; if (targetObject) targetObject.visible = false; }
@@ -527,6 +539,13 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+function applyZoom() {
+  const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+  const baseDist = taskCameraPos.distanceTo(taskTarget);
+  const newDist = baseDist / currentZoom;
+  camera.position.copy(controls.target).add(direction.multiplyScalar(newDist));
+}
+
 function bindControls() {
   document.getElementById('btn-start').onclick = () => { startRound(); };
   document.getElementById('btn-reveal').onclick = () => {
@@ -538,6 +557,11 @@ function bindControls() {
   };
   document.getElementById('mask-slider').oninput = function() {
     document.getElementById('mask-val').textContent = this.value;
+  };
+  document.getElementById('zoom-slider').oninput = function() {
+    currentZoom = +this.value;
+    document.getElementById('zoom-val').textContent = currentZoom.toFixed(1) + '×';
+    if (controls.enabled) applyZoom();
   };
 
   const sceneBtns = document.querySelectorAll('.scene-btn');
@@ -552,15 +576,25 @@ function bindControls() {
 
   const btnTask = document.getElementById('btn-task');
   const btnInspect = document.getElementById('btn-inspect');
+  const zoomLabel = document.getElementById('zoom-label');
   btnTask.onclick = () => {
     btnTask.classList.add('active'); btnInspect.classList.remove('active');
     controls.enabled = false;
     loadScene(currentSceneIdx);
+    document.getElementById('feedback').textContent = 'Task view restored. Press Start.';
   };
   btnInspect.onclick = () => {
     btnInspect.classList.add('active'); btnTask.classList.remove('active');
     controls.enabled = true;
-    document.getElementById('feedback').textContent = 'Inspect mode: drag to orbit, scroll to zoom.';
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.enableRotate = true;
+    document.getElementById('feedback').textContent = 'Inspect mode: drag to orbit, scroll/drag to zoom, right-drag to pan.';
+  };
+  document.getElementById('btn-reset-cam').onclick = () => {
+    controls.enabled = false;
+    btnTask.classList.add('active'); btnInspect.classList.remove('active');
+    loadScene(currentSceneIdx);
   };
 }
 
