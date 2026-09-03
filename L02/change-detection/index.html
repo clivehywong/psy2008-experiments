@@ -6,340 +6,565 @@
 <title>Spot the Change — PSY2008</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
-         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-         padding: 20px; user-select: none; -webkit-user-select: none; }
-  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 640px; width: 100%;
-          box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
-  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
-  h2 { font-size: 20px; margin-bottom: 10px; color: #e94560; }
-  p { margin: 10px 0; line-height: 1.55; font-size: 16px; }
-  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
-         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
-  .btn:active { transform: scale(.97); }
-  #stage { width: 100%; max-width: 640px; height: 52vh; min-height: 320px; border-radius: 16px;
-           position: relative; overflow: hidden; background: #666; display: none; }
-  #stage img, #stage svg { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
-  #stage svg.active { display: block; }
-  #stage .hitbox { cursor: pointer; fill: rgba(255,255,255,.01); stroke: none; }
-  #stage .hitbox:hover { fill: rgba(255,255,255,.08); }
-  #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
-  .hidden { display: none !important; }
-  .big { font-size: 36px; color: #e94560; font-weight: bold; margin: 8px 0; }
-  .trials { font-size: 14px; color: #aab; margin-top: 12px; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b0f19; color: #eee;
+         min-height: 100vh; overflow: hidden; }
+  #canvas-container { position: absolute; inset: 0; }
+  #mask { position: absolute; inset: 0; background: #666; display: none; z-index: 5; }
+  #panel {
+    position: absolute; top: 16px; left: 16px; width: 320px; max-width: calc(100vw - 32px);
+    background: rgba(16, 22, 40, 0.95); padding: 18px; border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(6px); z-index: 20;
+    font-size: 14px; line-height: 1.4;
+  }
+  #panel h1 { font-size: 17px; margin: 0 0 10px; color: #e94560; }
+  #panel h2 { font-size: 12px; margin: 16px 0 8px; color: #8aa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  #panel button {
+    width: 100%; margin-top: 10px; padding: 10px; border: none; border-radius: 8px;
+    background: #0f3460; color: #fff; font-size: 14px; cursor: pointer; transition: background 0.15s;
+  }
+  #panel button:hover { background: #1a4a85; }
+  #panel button.active { background: #e94560; }
+  #panel .row { display: flex; gap: 8px; }
+  #panel .row button { flex: 1; margin-top: 0; }
+  #panel label { display: block; margin: 10px 0 4px; color: #ccd; font-size: 13px; }
+  #panel input[type="range"] { width: 100%; accent-color: #e94560; }
+  #panel .value { float: right; color: #e94560; font-weight: 600; }
+  #panel .note { color: #9ab; font-size: 12px; margin-top: 12px; line-height: 1.5; }
+  #status {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: rgba(16, 22, 40, 0.95); padding: 10px 22px; border-radius: 10px;
+    font-size: 15px; color: #eee; pointer-events: none; z-index: 20;
+  }
+  #results {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 420px; max-width: calc(100vw - 32px);
+    background: rgba(16, 22, 40, 0.98); padding: 28px; border-radius: 18px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.7); text-align: center; z-index: 30; display: none;
+  }
+  #results h2 { color: #e94560; font-size: 22px; margin-bottom: 12px; }
+  #results .big { font-size: 36px; color: #e94560; font-weight: bold; margin: 12px 0; }
+  #results .trials { font-size: 13px; color: #aab; margin-top: 12px; }
+  #results p { font-size: 14px; color: #ccd; line-height: 1.55; margin: 12px 0; }
 </style>
 </head>
 <body>
 
-<div class="card" id="intro">
+<div id="canvas-container"></div>
+<div id="mask"></div>
+
+<div id="panel">
   <h1>Spot the Change</h1>
-  <p>Two versions of a real-world scene will alternate with a brief grey screen. <b>One object changes.</b></p>
-  <p>Click or tap the object that changes as soon as you find it. There are 4 scenes. You have 30 seconds per scene.</p>
-  <button class="btn" id="startBtn">Start</button>
+  <p class="note">A 3D scene flickers: original image → grey mask → changed image → grey mask… Click the object that changes.</p>
+
+  <h2>Task</h2>
+  <div class="row">
+    <button id="btn-start">Start</button>
+    <button id="btn-reveal">Reveal</button>
+  </div>
+
+  <h2>Scene</h2>
+  <div class="row">
+    <button id="btn-scene-0" class="scene-btn active">Office</button>
+    <button id="btn-scene-1" class="scene-btn">Lounge</button>
+    <button id="btn-scene-2" class="scene-btn">Kitchen</button>
+  </div>
+
+  <h2>Timing (ms)</h2>
+  <label>Image duration <span id="img-val" class="value">240</span></label>
+  <input type="range" id="img-slider" min="100" max="1000" step="10" value="240">
+  <label>Mask duration <span id="mask-val" class="value">80</span></label>
+  <input type="range" id="mask-slider" min="40" max="500" step="10" value="80">
+
+  <h2>View</h2>
+  <div class="row">
+    <button id="btn-task" class="active">Task View</button>
+    <button id="btn-inspect">Inspect 3D</button>
+  </div>
+
+  <p class="note" id="feedback">Press Start to begin.</p>
 </div>
 
-<div id="stage"></div>
-<div id="status"></div>
+<div id="status">Press Start</div>
 
-<div class="card hidden" id="results">
+<div id="results">
   <h2>Your results</h2>
   <div class="big" id="score"></div>
   <p id="interp"></p>
   <div class="trials" id="trialList"></div>
-  <p style="margin-top:16px"><b>Why was that hard?</b> The grey flash wipes out the motion signal that normally tells
-  you where something changed. Without that cue, you must search the scene object by object — with attention.
-  That is change blindness: perception is not a photograph; it is built from whatever you attend.</p>
-  <button class="btn" id="againBtn">Run again</button>
+  <p>Why is this hard? The grey mask destroys the motion cue that normally screams “something changed here!” Without it, your attention must search object by object.</p>
+  <button onclick="location.reload()" style="margin-top:10px">Run again</button>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
 <script>
-// Rensink, O'Regan & Clark (1997) flicker paradigm timing.
-const IMG_MS = 240, MASK_MS = 80, MAX_MS = 30000, N_ROUNDS = 4;
+// Rensink, O'Regan & Clark (1997) flicker paradigm, rendered in 3D.
+let scene, camera, renderer, controls;
+let currentSceneIdx = 0;
+let sceneGroup = null, targetObject = null, targetName = '';
+let stateA = true; // currently showing A or B configuration
+let cycle = 'a'; // 'a' | 'mask' | 'b'
+let flickerTimer = null, roundTimer = null;
+let startTime = 0, solved = false;
+let results = [];
+let raycaster = new THREE.Raycaster();
+let mouse = new THREE.Vector2();
 
-// Each scene: two SVGs, one change target id, and a description shown on reveal.
-const SCENES = [
-  {
-    name: 'Park',
-    changeId: 'bird',
-    changeDesc: 'The bird on the branch appeared / disappeared.',
-    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <defs><linearGradient id="sky1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#87CEEB"/><stop offset="100%" stop-color="#E0F7FA"/></linearGradient></defs>
-      <rect width="400" height="300" fill="url(#sky1)"/>
-      <circle cx="340" cy="50" r="25" fill="#FFD700"/>
-      <ellipse cx="80" cy="60" rx="35" ry="14" fill="#fff" opacity=".9"/>
-      <ellipse cx="110" cy="55" rx="28" ry="12" fill="#fff" opacity=".85"/>
-      <rect x="0" y="220" width="400" height="80" fill="#7CFC00"/>
-      <rect x="20" y="120" width="14" height="120" fill="#8B4513"/>
-      <circle cx="27" cy="110" r="45" fill="#228B22"/>
-      <circle cx="27" cy="75" r="35" fill="#32CD32"/>
-      <rect x="140" y="160" width="90" height="60" rx="4" fill="#A0522D"/>
-      <rect x="155" y="175" width="22" height="22" fill="#87CEEB"/>
-      <rect x="195" y="175" width="22" height="22" fill="#87CEEB"/>
-      <rect x="155" y="205" width="22" height="15" fill="#8B4513"/>
-      <rect x="195" y="205" width="22" height="15" fill="#8B4513"/>
-      <path d="M260 200 L340 200 L300 150 Z" fill="#708090"/>
-      <rect x="245" y="200" width="110" height="8" fill="#696969"/>
-      <circle id="bird" data-hit="true" cx="52" cy="88" r="7" fill="#FF4500"/>
-      <rect data-hit="true" x="60" y="210" width="30" height="18" rx="9" fill="#4a90d9"/>
-      <rect data-hit="true" x="330" y="150" width="30" height="80" fill="#D2691E"/>
-    </svg>`,
-    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <defs><linearGradient id="sky1b" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#87CEEB"/><stop offset="100%" stop-color="#E0F7FA"/></linearGradient></defs>
-      <rect width="400" height="300" fill="url(#sky1b)"/>
-      <circle cx="340" cy="50" r="25" fill="#FFD700"/>
-      <ellipse cx="80" cy="60" rx="35" ry="14" fill="#fff" opacity=".9"/>
-      <ellipse cx="110" cy="55" rx="28" ry="12" fill="#fff" opacity=".85"/>
-      <rect x="0" y="220" width="400" height="80" fill="#7CFC00"/>
-      <rect x="20" y="120" width="14" height="120" fill="#8B4513"/>
-      <circle cx="27" cy="110" r="45" fill="#228B22"/>
-      <circle cx="27" cy="75" r="35" fill="#32CD32"/>
-      <rect x="140" y="160" width="90" height="60" rx="4" fill="#A0522D"/>
-      <rect x="155" y="175" width="22" height="22" fill="#87CEEB"/>
-      <rect x="195" y="175" width="22" height="22" fill="#87CEEB"/>
-      <rect x="155" y="205" width="22" height="15" fill="#8B4513"/>
-      <rect x="195" y="205" width="22" height="15" fill="#8B4513"/>
-      <path d="M260 200 L340 200 L300 150 Z" fill="#708090"/>
-      <rect x="245" y="200" width="110" height="8" fill="#696969"/>
-      <rect data-hit="true" x="60" y="210" width="30" height="18" rx="9" fill="#4a90d9"/>
-      <rect data-hit="true" x="330" y="150" width="30" height="80" fill="#D2691E"/>
-    </svg>`
-  },
-  {
-    name: 'Kitchen',
-    changeId: 'cup',
-    changeDesc: 'The mug on the counter appeared / disappeared.',
-    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="300" fill="#F5F5DC"/>
-      <rect x="0" y="240" width="400" height="60" fill="#DEB887"/>
-      <rect x="20" y="20" width="120" height="220" fill="#C0C0C0"/>
-      <rect x="35" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="85" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="35" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="85" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="35" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="85" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="180" y="160" width="180" height="80" fill="#F4A460"/>
-      <rect x="200" y="90" width="50" height="70" fill="#87CEEB"/>
-      <circle data-hit="true" cx="225" cy="125" r="8" fill="#FFD700"/>
-      <rect data-hit="true" x="300" y="130" width="14" height="60" fill="#228B22"/>
-      <circle data-hit="true" cx="307" cy="120" r="16" fill="#FF6347"/>
-      <path id="cup" data-hit="true" d="M270 200 L270 235 L295 235 L295 200 Z" fill="#e94560"/>
-      <path d="M295 205 Q305 205 305 215 Q305 225 295 225" fill="none" stroke="#e94560" stroke-width="4"/>
-    </svg>`,
-    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="300" fill="#F5F5DC"/>
-      <rect x="0" y="240" width="400" height="60" fill="#DEB887"/>
-      <rect x="20" y="20" width="120" height="220" fill="#C0C0C0"/>
-      <rect x="35" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="85" y="45" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="35" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="85" y="110" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="35" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="85" y="175" width="30" height="45" fill="#fff" stroke="#999" stroke-width="2"/>
-      <rect x="180" y="160" width="180" height="80" fill="#F4A460"/>
-      <rect x="200" y="90" width="50" height="70" fill="#87CEEB"/>
-      <circle data-hit="true" cx="225" cy="125" r="8" fill="#FFD700"/>
-      <rect data-hit="true" x="300" y="130" width="14" height="60" fill="#228B22"/>
-      <circle data-hit="true" cx="307" cy="120" r="16" fill="#FF6347"/>
-    </svg>`
-  },
-  {
-    name: 'Study',
-    changeId: 'book',
-    changeDesc: 'A book appeared / disappeared on the shelf.',
-    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="300" fill="#E6E6FA"/>
-      <rect x="40" y="40" width="320" height="180" fill="#8B4513"/>
-      <rect x="55" y="55" width="290" height="150" fill="#D2691E"/>
-      <rect x="70" y="70" width="35" height="110" fill="#B22222"/>
-      <rect x="110" y="70" width="25" height="110" fill="#228B22"/>
-      <rect x="145" y="70" width="30" height="110" fill="#4a90d9"/>
-      <rect x="185" y="70" width="20" height="110" fill="#FFD700"/>
-      <rect id="book" data-hit="true" x="215" y="75" width="28" height="105" fill="#800080"/>
-      <rect data-hit="true" x="255" y="70" width="22" height="110" fill="#FF6347"/>
-      <rect data-hit="true" x="290" y="70" width="32" height="110" fill="#20B2AA"/>
-      <rect data-hit="true" x="80" y="230" width="240" height="50" fill="#696969"/>
-      <rect data-hit="true" x="100" y="200" width="80" height="45" fill="#A0522D"/>
-      <circle data-hit="true" cx="330" cy="245" r="18" fill="#B0C4DE"/>
-    </svg>`,
-    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="300" fill="#E6E6FA"/>
-      <rect x="40" y="40" width="320" height="180" fill="#8B4513"/>
-      <rect x="55" y="55" width="290" height="150" fill="#D2691E"/>
-      <rect x="70" y="70" width="35" height="110" fill="#B22222"/>
-      <rect x="110" y="70" width="25" height="110" fill="#228B22"/>
-      <rect x="145" y="70" width="30" height="110" fill="#4a90d9"/>
-      <rect x="185" y="70" width="20" height="110" fill="#FFD700"/>
-      <rect data-hit="true" x="255" y="70" width="22" height="110" fill="#FF6347"/>
-      <rect data-hit="true" x="290" y="70" width="32" height="110" fill="#20B2AA"/>
-      <rect data-hit="true" x="80" y="230" width="240" height="50" fill="#696969"/>
-      <rect data-hit="true" x="100" y="200" width="80" height="45" fill="#A0522D"/>
-      <circle data-hit="true" cx="330" cy="245" r="18" fill="#B0C4DE"/>
-    </svg>`
-  },
-  {
-    name: 'Street',
-    changeId: 'light',
-    changeDesc: 'The traffic light changed colour.',
-    a: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="300" fill="#87CEEB"/>
-      <rect x="0" y="250" width="400" height="50" fill="#696969"/>
-      <rect x="30" y="80" width="100" height="170" fill="#708090"/>
-      <rect x="45" y="95" width="70" height="50" fill="#87CEEB"/>
-      <rect x="45" y="155" width="70" height="50" fill="#87CEEB"/>
-      <rect x="45" y="215" width="70" height="25" fill="#696969"/>
-      <rect x="170" y="120" width="60" height="130" fill="#A0522D"/>
-      <rect x="185" y="60" width="30" height="60" fill="#333"/>
-      <circle cx="200" cy="78" r="10" fill="#e94560"/>
-      <circle cx="200" cy="105" r="10" fill="#333"/>
-      <circle id="light" data-hit="true" cx="200" cy="132" r="10" fill="#333"/>
-      <rect data-hit="true" x="280" y="200" width="90" height="50" fill="#4a90d9"/>
-      <circle data-hit="true" cx="325" cy="180" r="22" fill="#32CD32"/>
-      <rect data-hit="true" x="260" y="110" width="110" height="70" fill="#F4A460"/>
-    </svg>`,
-    b: `<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="300" fill="#87CEEB"/>
-      <rect x="0" y="250" width="400" height="50" fill="#696969"/>
-      <rect x="30" y="80" width="100" height="170" fill="#708090"/>
-      <rect x="45" y="95" width="70" height="50" fill="#87CEEB"/>
-      <rect x="45" y="155" width="70" height="50" fill="#87CEEB"/>
-      <rect x="45" y="215" width="70" height="25" fill="#696969"/>
-      <rect x="170" y="120" width="60" height="130" fill="#A0522D"/>
-      <rect x="185" y="60" width="30" height="60" fill="#333"/>
-      <circle cx="200" cy="78" r="10" fill="#e94560"/>
-      <circle cx="200" cy="105" r="10" fill="#333"/>
-      <circle id="light" data-hit="true" cx="200" cy="132" r="10" fill="#32CD32"/>
-      <rect data-hit="true" x="280" y="200" width="90" height="50" fill="#4a90d9"/>
-      <circle data-hit="true" cx="325" cy="180" r="22" fill="#32CD32"/>
-      <rect data-hit="true" x="260" y="110" width="110" height="70" fill="#F4A460"/>
-    </svg>`
+const MAX_MS = 30000;
+const SCENES = [];
+
+// ---------- Procedural helpers ----------
+function mat(color, props = {}) {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.05, ...props });
+}
+
+function box(w, h, d, color, x, y, z, parent, name = '') {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  if (name) mesh.name = name;
+  if (parent) parent.add(mesh);
+  return mesh;
+}
+
+function createWoodTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#8B5A2B'; ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 60; i++) {
+    ctx.strokeStyle = `rgba(60, 30, 10, ${0.1 + Math.random() * 0.15})`;
+    ctx.lineWidth = 1 + Math.random() * 2;
+    ctx.beginPath();
+    const x = Math.random() * 512;
+    ctx.moveTo(x, 0); ctx.lineTo(x + (Math.random() - 0.5) * 30, 512);
+    ctx.stroke();
   }
-];
-
-const stage = document.getElementById('stage'), status = document.getElementById('status');
-let round = 0, results = [], flickerTimer = null, roundTimer = null, startTime = 0, solved = false;
-let showingA = true, svgA = null, svgB = null, cycle = 'a';
-
-function makeHitboxes(svg, scene, isA) {
-  // Add transparent hitboxes on top so clicks are easier than pixel-perfect SVG targeting.
-  // The change target is only in the version that contains it.
-  const targets = [...svg.querySelectorAll('[data-hit="true"]')];
-  targets.forEach(el => {
-    const r = el.getBBox();
-    const pad = 4;
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', r.x - pad);
-    rect.setAttribute('y', r.y - pad);
-    rect.setAttribute('width', r.width + pad * 2);
-    rect.setAttribute('height', r.height + pad * 2);
-    rect.setAttribute('class', 'hitbox');
-    rect.dataset.targetId = el.id || '';
-    rect.addEventListener('pointerdown', e => handleClick(e, el.id || '', scene));
-    svg.appendChild(rect);
-  });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
 }
 
-function loadScene(scene) {
-  stage.innerHTML = '';
-  svgA = new DOMParser().parseFromString(scene.a, 'image/svg+xml').documentElement;
-  svgB = new DOMParser().parseFromString(scene.b, 'image/svg+xml').documentElement;
-  svgA.classList.add('active');
-  stage.appendChild(svgA);
-  stage.appendChild(svgB);
-  // Hitboxes need the SVGs in the DOM so getBBox returns geometry.
-  makeHitboxes(svgA, scene, true);
-  makeHitboxes(svgB, scene, false);
-  showingA = true;
+function createWallTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f0f0f0'; ctx.fillRect(0, 0, 512, 512);
+  for (let y = 0; y < 512; y += 64) {
+    for (let x = 0; x < 512; x += 64) {
+      ctx.fillStyle = ((x / 64 + y / 64) % 2 === 0) ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.04)';
+      ctx.fillRect(x, y, 64, 64);
+    }
+  }
+  return new THREE.CanvasTexture(canvas);
 }
 
-// Flicker cycle: A -> mask -> B -> mask -> A ...  (Rensink et al. 1997 style)
+function createFloorTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#d9d3c7'; ctx.fillRect(0, 0, 512, 512);
+  const woodTex = createWoodTexture();
+  return woodTex;
+}
+
+const floorMat = new THREE.MeshStandardMaterial({ map: createFloorTexture(), roughness: 0.8, metalness: 0.05 });
+const wallMat = new THREE.MeshStandardMaterial({ map: createWallTexture(), roughness: 0.9 });
+
+// ---------- Scene builders ----------
+function buildOffice() {
+  const group = new THREE.Group();
+  // Room shell
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+  group.add(floor);
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), wallMat);
+  backWall.position.set(0, 3, -6); group.add(backWall);
+  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), wallMat);
+  leftWall.rotation.y = Math.PI / 2; leftWall.position.set(-6, 3, 0); group.add(leftWall);
+
+  // Desk
+  box(4, 0.12, 2, '#5C4033', 0, 1.6, -4, group);
+  box(0.12, 1.6, 0.12, '#5C4033', -1.8, 0.8, -4.9, group);
+  box(0.12, 1.6, 0.12, '#5C4033', 1.8, 0.8, -4.9, group);
+  box(0.12, 1.6, 0.12, '#5C4033', -1.8, 0.8, -3.1, group);
+  box(0.12, 1.6, 0.12, '#5C4033', 1.8, 0.8, -3.1, group);
+
+  // Monitor
+  box(1.2, 0.8, 0.08, '#111', 0, 2.3, -4.5, group, 'monitor');
+  box(0.1, 0.4, 0.1, '#333', 0, 1.9, -4.5, group);
+
+  // Chair
+  box(1.2, 0.12, 1.2, '#333', 0, 0.9, -2.2, group, 'chair');
+  box(1.2, 1.2, 0.12, '#333', 0, 1.5, -1.65, group);
+
+  // Bookshelf
+  box(2.5, 4, 0.6, '#8B5A2B', -4, 2, -4, group, 'bookshelf');
+  for (let i = 0; i < 4; i++) {
+    box(2.3, 0.06, 0.58, '#5C4033', -4, 0.5 + i * 1.1, -4, group);
+  }
+  // Books
+  for (let i = 0; i < 5; i++) {
+    box(0.15, 0.6, 0.45, ['#a33','#3a3','#33a','#aa3','#a3a'][i], -4.8 + i * 0.35, 1.1, -4, group, 'book' + i);
+  }
+
+  // Plant
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.18, 0.5, 16), mat('#8B4513'));
+  pot.position.set(3.5, 0.25, -4); pot.castShadow = true; group.add(pot);
+  const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55), mat('#228B22'));
+  leaves.position.set(3.5, 0.85, -4); leaves.castShadow = true; group.add(leaves);
+
+  // Coffee cup
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.25, 16), mat('#fff'));
+  cup.position.set(1.2, 1.78, -3.8); cup.castShadow = true; group.add(cup);
+
+  // Lamp
+  box(0.15, 0.8, 0.15, '#333', -1.5, 2, -3.8, group);
+  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.4, 16, 1, true), mat('#e94560'));
+  shade.position.set(-1.5, 2.5, -3.8); group.add(shade);
+
+  // Target: red notebook on desk (appears in B)
+  const notebook = box(0.6, 0.06, 0.85, '#e94560', 0.8, 1.69, -3.8, group, 'target');
+  notebook.visible = false;
+
+  return { group, target: notebook, name: 'red notebook on the desk' };
+}
+
+function buildLounge() {
+  const group = new THREE.Group();
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+  group.add(floor);
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), wallMat);
+  backWall.position.set(0, 3, -6); group.add(backWall);
+
+  // Sofa
+  box(4.5, 0.5, 1.8, '#4a6fa5', 0, 0.7, -3.5, group, 'sofa');
+  box(4.5, 1.0, 0.3, '#4a6fa5', 0, 1.2, -4.3, group, 'sofa-back');
+  box(0.3, 1.0, 1.8, '#4a6fa5', -2.1, 1.2, -3.5, group, 'sofa-arm');
+  box(0.3, 1.0, 1.8, '#4a6fa5', 2.1, 1.2, -3.5, group, 'sofa-arm');
+
+  // Cushion
+  box(0.9, 0.25, 0.9, '#e94560', -1.2, 1.1, -3.5, group, 'target');
+
+  // Coffee table
+  box(2.2, 0.08, 1.2, '#5C4033', 0, 0.9, -1.5, group, 'table');
+  box(0.08, 0.9, 0.08, '#5C4033', -0.9, 0.45, -1.95, group);
+  box(0.08, 0.9, 0.08, '#5C4033', 0.9, 0.45, -1.95, group);
+  box(0.08, 0.9, 0.08, '#5C4033', -0.9, 0.45, -1.05, group);
+  box(0.08, 0.9, 0.08, '#5C4033', 0.9, 0.45, -1.05, group);
+
+  // TV stand
+  box(2.5, 0.8, 0.6, '#333', 0, 0.4, 1.5, group);
+  // TV
+  box(2.0, 1.1, 0.08, '#111', 0, 1.4, 1.2, group, 'tv');
+
+  // Plant
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.55, 16), mat('#8B4513'));
+  pot.position.set(-4, 0.28, -1); pot.castShadow = true; group.add(pot);
+  const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7), mat('#228B22'));
+  leaves.position.set(-4, 1.0, -1); leaves.castShadow = true; group.add(leaves);
+
+  // Picture frame on back wall
+  box(1.6, 1.0, 0.05, '#fff', 3, 2.8, -5.95, group, 'frame');
+  const art = box(1.3, 0.7, 0.06, '#e94560', 3, 2.8, -5.93, group, 'target');
+
+  return { group, target: art, name: 'picture on the wall' };
+}
+
+function buildKitchen() {
+  const group = new THREE.Group();
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+  group.add(floor);
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), wallMat);
+  backWall.position.set(0, 3, -6); group.add(backWall);
+  const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 6), wallMat);
+  rightWall.rotation.y = -Math.PI / 2; rightWall.position.set(6, 3, 0); group.add(rightWall);
+
+  // Fridge
+  box(1.4, 3.2, 1.4, '#C0C0C0', -4, 1.6, -4, group, 'fridge');
+
+  // Counter
+  box(3.5, 0.9, 0.8, '#fff', 2.5, 0.45, -5.6, group, 'counter');
+  box(3.5, 0.05, 0.85, '#333', 2.5, 0.92, -5.6, group, 'countertop');
+
+  // Kettle
+  const kettle = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.35, 16), mat('#e94560'));
+  kettle.position.set(1.2, 1.12, -5.6); kettle.castShadow = true; group.add(kettle);
+  const spout = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.2, 8), mat('#e94560'));
+  spout.position.set(1.35, 1.25, -5.6); spout.rotation.z = -Math.PI / 4; group.add(spout);
+
+  // Table
+  box(2.5, 0.08, 1.6, '#8B5A2B', 0, 1.2, -1.5, group, 'table');
+  for (let x of [-1, 1]) {
+    for (let z of [-0.6, 0.6]) {
+      box(0.1, 1.2, 0.1, '#5C4033', x * 1.0, 0.6, -1.5 + z * 1.0, group);
+    }
+  }
+
+  // Chairs
+  box(0.8, 0.08, 0.8, '#333', -1.8, 0.7, -1.5, group, 'chair');
+  box(0.08, 0.8, 0.08, '#333', -2.1, 0.4, -1.8, group);
+  box(0.08, 0.8, 0.08, '#333', -1.5, 0.4, -1.8, group);
+  box(0.08, 0.8, 0.08, '#333', -2.1, 0.4, -1.2, group);
+  box(0.08, 0.8, 0.08, '#333', -1.5, 0.4, -1.2, group);
+
+  // Fruit bowl
+  const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.45, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat('#fff'));
+  bowl.position.set(0, 1.24, -1.5); bowl.castShadow = true; group.add(bowl);
+  // Apples
+  const appleMat = mat('#32CD32');
+  const apples = [];
+  for (let i = 0; i < 4; i++) {
+    const a = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), appleMat);
+    a.position.set(-0.15 + i * 0.1, 1.42, -1.5 + (i % 2 - 0.5) * 0.1);
+    group.add(a); apples.push(a);
+  }
+  // Target: extra apple (appears in B)
+  const extra = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), mat('#FF4500'));
+  extra.position.set(0.15, 1.5, -1.45);
+  extra.castShadow = true; extra.name = 'target';
+  extra.visible = false;
+  group.add(extra);
+
+  return { group, target: extra, name: 'red apple in the bowl' };
+}
+
+SCENES.push(buildOffice, buildLounge, buildKitchen);
+
+// ---------- Core engine ----------
+function init() {
+  const container = document.getElementById('canvas-container');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0f19);
+  scene.fog = new THREE.Fog(0x0b0f19, 10, 25);
+
+  camera = new THREE.PerspectiveCamera(46, container.clientWidth / container.clientHeight, 0.1, 100);
+  camera.position.set(0, 1.6, 5);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enabled = false;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(3, 8, 4); dir.castShadow = true;
+  dir.shadow.mapSize.width = 1024; dir.shadow.mapSize.height = 1024;
+  scene.add(dir);
+  const fill = new THREE.DirectionalLight(0xbfdbfe, 0.35);
+  fill.position.set(-3, 4, 2); scene.add(fill);
+
+  loadScene(0);
+  animate();
+
+  window.addEventListener('resize', onResize);
+  renderer.domElement.addEventListener('pointerdown', onClick);
+
+  bindControls();
+}
+
+function onResize() {
+  const container = document.getElementById('canvas-container');
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+}
+
+function loadScene(idx) {
+  if (sceneGroup) scene.remove(sceneGroup);
+  currentSceneIdx = idx;
+  const builder = SCENES[idx];
+  const data = builder();
+  sceneGroup = data.group;
+  targetObject = data.target;
+  targetName = data.name;
+  scene.add(sceneGroup);
+  setConfigA();
+
+  // Task camera per scene
+  const taskPos = [
+    new THREE.Vector3(0, 1.7, 5.2),
+    new THREE.Vector3(0, 1.8, 5.5),
+    new THREE.Vector3(0, 1.9, 5.0)
+  ];
+  camera.position.copy(taskPos[idx]);
+  camera.lookAt(0, 1.4, -3);
+  controls.target.set(0, 1.4, -3);
+  controls.update();
+}
+
+function setConfigA() { stateA = true; if (targetObject) targetObject.visible = false; }
+function setConfigB() { stateA = false; if (targetObject) targetObject.visible = true; }
+
+function showMask(show) {
+  document.getElementById('mask').style.display = show ? 'block' : 'none';
+}
+
+function getImgMs() { return +document.getElementById('img-slider').value; }
+function getMaskMs() { return +document.getElementById('mask-slider').value; }
+
 function nextPhase() {
   if (solved) return;
   if (cycle === 'a') {
-    svgA.classList.remove('active');
+    showMask(true);
     cycle = 'mask';
-    flickerTimer = setTimeout(nextPhase, MASK_MS);
+    flickerTimer = setTimeout(nextPhase, getMaskMs());
   } else if (cycle === 'mask') {
-    if (showingA) {
-      svgA.classList.remove('active');
-      svgB.classList.add('active');
-      showingA = false;
-    } else {
-      svgB.classList.remove('active');
-      svgA.classList.add('active');
-      showingA = true;
-    }
+    showMask(false);
+    if (stateA) setConfigB(); else setConfigA();
     cycle = 'b';
-    flickerTimer = setTimeout(nextPhase, IMG_MS);
+    flickerTimer = setTimeout(nextPhase, getImgMs());
   } else if (cycle === 'b') {
-    svgA.classList.remove('active');
-    svgB.classList.remove('active');
+    showMask(true);
     cycle = 'mask';
-    flickerTimer = setTimeout(nextPhase, MASK_MS);
+    flickerTimer = setTimeout(nextPhase, getMaskMs());
+  } else {
+    // Return to next 'a' cycle
+    showMask(false);
+    if (stateA) setConfigB(); else setConfigA();
+    cycle = 'a';
+    flickerTimer = setTimeout(nextPhase, getImgMs());
   }
 }
 
 function startRound() {
-  if (round >= N_ROUNDS) return finish();
-  solved = false;
-  cycle = 'a';
-  const scene = SCENES[round];
-  stage.style.display = 'block';
-  loadScene(scene);
-  status.textContent = `Scene ${round + 1}/${N_ROUNDS} — click/tap the object that changes`;
-  startTime = performance.now();
-  flickerTimer = setTimeout(nextPhase, IMG_MS);
-  roundTimer = setTimeout(() => endRound(false, scene), MAX_MS);
-}
-
-function handleClick(e, clickedId, scene) {
-  e.stopPropagation();
   if (solved) return;
-  if (clickedId === scene.changeId) {
-    endRound(true, scene);
-  } else {
-    status.textContent = 'Not that one — keep looking.';
-  }
+  solved = false;
+  setConfigA();
+  showMask(false);
+  cycle = 'a';
+  document.getElementById('btn-start').textContent = 'Restart';
+  document.getElementById('feedback').textContent = 'Click the object that changes.';
+  document.getElementById('status').textContent = `Scene ${currentSceneIdx + 1}/3 — find the change`;
+  startTime = performance.now();
+  flickerTimer = setTimeout(nextPhase, getImgMs());
+  roundTimer = setTimeout(() => endRound(false), MAX_MS);
 }
 
-function endRound(found, scene) {
+function endRound(found) {
   if (solved) return;
   solved = true;
   clearTimeout(flickerTimer);
   clearTimeout(roundTimer);
+  showMask(false);
   const rt = Math.round(performance.now() - startTime);
-  results.push(found && rt <= MAX_MS ? rt : null);
+  results.push(found ? rt : null);
   if (found) {
-    status.textContent = `Found in ${(rt/1000).toFixed(1)} s ✓`;
+    document.getElementById('feedback').textContent = `Found in ${(rt/1000).toFixed(1)} s ✓`;
+    document.getElementById('status').textContent = 'Found — revealing scene for 2 s…';
   } else {
-    status.textContent = 'Time up — change revealed.';
-    // Reveal the changed version permanently.
-    svgA.classList.remove('active');
-    svgB.classList.add('active');
+    document.getElementById('feedback').textContent = 'Time up. The change is highlighted now.';
+    document.getElementById('status').textContent = 'Time up — revealing change';
   }
-  round++;
-  setTimeout(startRound, 1800);
+  // Reveal B state so the target is visible
+  setConfigB();
+  // Highlight target by pulsing emissive
+  if (targetObject && targetObject.material) {
+    const orig = targetObject.material.emissive ? targetObject.material.emissive.getHex() : 0;
+    targetObject.material.emissive = new THREE.Color(0x555555);
+    setTimeout(() => { if (targetObject && targetObject.material) targetObject.material.emissive.setHex(orig); }, 2000);
+  }
+
+  setTimeout(() => {
+    if (currentSceneIdx < SCENES.length - 1) {
+      document.querySelectorAll('.scene-btn')[currentSceneIdx + 1].click();
+      startRound();
+    } else {
+      finish();
+    }
+  }, 2200);
+}
+
+function onClick(e) {
+  if (!solved) {
+    // Only accept clicks during image display, not mask
+    if (document.getElementById('mask').style.display === 'block') return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(sceneGroup.children, true);
+    if (intersects.length > 0) {
+      // Check if clicked object or any ancestor is the target
+      let obj = intersects[0].object;
+      let hitTarget = false;
+      while (obj) {
+        if (obj === targetObject) { hitTarget = true; break; }
+        obj = obj.parent;
+      }
+      if (hitTarget) endRound(true);
+      else document.getElementById('feedback').textContent = 'Not that one — keep looking.';
+    }
+  }
 }
 
 function finish() {
-  stage.style.display = 'none';
-  status.textContent = '';
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('status').style.display = 'none';
   const found = results.filter(r => r !== null);
-  document.getElementById('score').textContent = `${found.length}/${N_ROUNDS} found` +
+  document.getElementById('score').textContent = `${found.length}/${SCENES.length} found` +
     (found.length ? ` · mean ${(found.reduce((a,b)=>a+b,0)/found.length/1000).toFixed(1)} s` : '');
   document.getElementById('interp').textContent =
-    found.length === N_ROUNDS ? 'Sharp! But notice how LONG it took — without a motion cue, attention must search object by object.'
-    : 'Typical result — without the motion cue, your attention has to check objects one at a time.';
+    found.length === SCENES.length ? 'Sharp — but notice how long it took without the motion cue.'
+    : 'Typical result: change blindness means you only see what you attend.';
   document.getElementById('trialList').textContent =
     'Scenes: ' + results.map(r => r ? (r/1000).toFixed(1) + ' s' : 'missed').join(' · ');
-  document.getElementById('results').classList.remove('hidden');
 }
 
-document.getElementById('startBtn').onclick = () => {
-  document.getElementById('intro').classList.add('hidden');
-  round = 0; results = []; startRound();
-};
-document.getElementById('againBtn').onclick = () => location.reload();
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function bindControls() {
+  document.getElementById('btn-start').onclick = () => { startRound(); };
+  document.getElementById('btn-reveal').onclick = () => {
+    if (!solved) endRound(false);
+  };
+
+  document.getElementById('img-slider').oninput = function() {
+    document.getElementById('img-val').textContent = this.value;
+  };
+  document.getElementById('mask-slider').oninput = function() {
+    document.getElementById('mask-val').textContent = this.value;
+  };
+
+  const sceneBtns = document.querySelectorAll('.scene-btn');
+  sceneBtns.forEach((btn, i) => {
+    btn.onclick = () => {
+      sceneBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadScene(i);
+      document.getElementById('feedback').textContent = 'Scene changed. Press Start.';
+    };
+  });
+
+  const btnTask = document.getElementById('btn-task');
+  const btnInspect = document.getElementById('btn-inspect');
+  btnTask.onclick = () => {
+    btnTask.classList.add('active'); btnInspect.classList.remove('active');
+    controls.enabled = false;
+    loadScene(currentSceneIdx);
+  };
+  btnInspect.onclick = () => {
+    btnInspect.classList.add('active'); btnTask.classList.remove('active');
+    controls.enabled = true;
+    document.getElementById('feedback').textContent = 'Inspect mode: drag to orbit, scroll to zoom.';
+  };
+}
+
+init();
 </script>
 </body>
 </html>
