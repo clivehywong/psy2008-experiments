@@ -374,84 +374,158 @@ const oneGroup = new THREE.Group();
 scene.add(oneGroup);
 oneGroup.visible = false;
 
-const eyePos = new THREE.Vector3(0, 1.0, 6);
-const objectA = { size: 1.0, z: -4, color: 0x60a5fa, x: -1.5 };
-const objectB = { size: 1.5, z: -6, color: 0xfacc15, x: 1.5 };
+const eyePos = new THREE.Vector3(0, 1.35, 6);
+const objectA = { height: 1.0, z: -4, color: 0x60a5fa, x: -1.6 };
+const objectB = { height: 1.5, z: -6, color: 0xfacc15, x: 1.6 };
 
-function makeCube(size, color, x, z) {
-  const cube = new THREE.Mesh(
-    new THREE.BoxGeometry(size, size, size),
-    new THREE.MeshStandardMaterial({ color: color, roughness: 0.4, metalness: 0.1 })
+// Build a simple humanoid figure so the demo looks like people, not boxes.
+function makeFigure(height, color, x, z) {
+  const group = new THREE.Group();
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12, 16, 16),
+    new THREE.MeshStandardMaterial({ color: 0xffd1b3, roughness: 0.5 })
   );
-  cube.position.set(x, size / 2, z);
-  cube.castShadow = true;
-  cube.receiveShadow = true;
-  return cube;
+  head.position.y = height - 0.12;
+  head.castShadow = true;
+  group.add(head);
+
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.22, height * 0.55, 16),
+    new THREE.MeshStandardMaterial({ color: color, roughness: 0.6 })
+  );
+  body.position.y = height * 0.45;
+  body.castShadow = true;
+  group.add(body);
+
+  const legGeo = new THREE.CylinderGeometry(0.07, 0.07, height * 0.32, 12);
+  const pants = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+  const leftLeg = new THREE.Mesh(legGeo, pants);
+  leftLeg.position.set(-0.09, height * 0.19, 0);
+  leftLeg.castShadow = true;
+  group.add(leftLeg);
+  const rightLeg = new THREE.Mesh(legGeo, pants);
+  rightLeg.position.set(0.09, height * 0.19, 0);
+  rightLeg.castShadow = true;
+  group.add(rightLeg);
+
+  const armGeo = new THREE.CylinderGeometry(0.055, 0.055, height * 0.35, 12);
+  const leftArm = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: color, roughness: 0.6 }));
+  leftArm.position.set(-0.25, height * 0.52, 0);
+  leftArm.rotation.z = 0.1;
+  group.add(leftArm);
+  const rightArm = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: color, roughness: 0.6 }));
+  rightArm.position.set(0.25, height * 0.52, 0);
+  rightArm.rotation.z = -0.1;
+  group.add(rightArm);
+
+  group.position.set(x, 0, z);
+  group.castShadow = true;
+  return group;
 }
-const cubeA = makeCube(objectA.size, objectA.color, objectA.x, objectA.z);
-const cubeB = makeCube(objectB.size, objectB.color, objectB.x, objectB.z);
-oneGroup.add(cubeA, cubeB);
-oneGroup.add(new THREE.GridHelper(24, 24, 0x334155, 0x1e293b));
+
+let figureA = makeFigure(objectA.height, objectA.color, objectA.x, objectA.z);
+let figureB = makeFigure(objectB.height, objectB.color, objectB.x, objectB.z);
+oneGroup.add(figureA, figureB);
+
+// Environment: ground plane, distant backdrop, and a simple grid.
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(60, 60),
+  new THREE.MeshStandardMaterial({ color: 0x1a2332, roughness: 0.9 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+oneGroup.add(ground);
+const grid = new THREE.GridHelper(60, 60, 0x334155, 0x1e293b);
+grid.position.y = 0.01;
+oneGroup.add(grid);
 
 const projGroup = new THREE.Group();
 oneGroup.add(projGroup);
 
+function disposeFigure(group) {
+  group.traverse(obj => {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else obj.material.dispose();
+    }
+  });
+}
+
 function updateOneImage() {
   const distB = parseFloat(document.getElementById('dist-slider').value);
   const sizeB = parseFloat(document.getElementById('size-slider').value);
-  objectB.size = sizeB;
+  objectB.height = sizeB;
   objectB.z = -distB;
-  cubeB.geometry.dispose();
-  cubeB.geometry = new THREE.BoxGeometry(sizeB, sizeB, sizeB);
-  cubeB.position.set(objectB.x, sizeB / 2, objectB.z);
+
+  oneGroup.remove(figureB);
+  disposeFigure(figureB);
+  figureB = makeFigure(objectB.height, objectB.color, objectB.x, objectB.z);
+  oneGroup.add(figureB);
 
   const dA = eyePos.z - objectA.z, dB = eyePos.z - objectB.z;
-  const angA = 2 * Math.atan(objectA.size / (2 * dA)) * 180 / Math.PI;
-  const angB = 2 * Math.atan(objectB.size / (2 * dB)) * 180 / Math.PI;
-  const match = Math.abs(angA - angB) < 0.8;
+  const angA = 2 * Math.atan(objectA.height / (2 * dA)) * 180 / Math.PI;
+  const angB = 2 * Math.atan(objectB.height / (2 * dB)) * 180 / Math.PI;
+  const match = Math.abs(angA - angB) < 0.5;
 
   projGroup.clear();
   const lineColor = match ? 0x4ade80 : 0xf87171;
-  [cubeA, cubeB].forEach((cube) => {
-    const top = cube.position.clone().setY(cube.geometry.parameters.height);
-    const bot = cube.position.clone().setY(0);
+  [figureA, figureB].forEach((fig) => {
+    const top = fig.position.clone().setY(fig.position.y + fig.children[0].position.y + 0.12);
+    const bot = fig.position.clone().setY(0);
     projGroup.add(makeLine(eyePos, top, lineColor));
     projGroup.add(makeLine(eyePos, bot, lineColor));
   });
 
-  // Retinal "screen": a framed panel between the eye and the objects,
-  // carrying the two silhouettes side by side
-  const screenZ = 3, screenY = 1.0;
-  const frameW = 1.9, frameH = 1.2;
-  const fc = new THREE.Vector3(0, screenY, screenZ);
+  // Retina diagram: an eye icon + a projection screen between eye and figures.
+  const screenZ = 3.4, screenY = 1.35;
+  const frameW = 1.6, frameH = 0.9;
   const corner = (dx, dy) => new THREE.Vector3(dx, screenY + dy, screenZ);
   const hw = frameW / 2, hh = frameH / 2;
   projGroup.add(makeLine(corner(-hw, -hh), corner(hw, -hh), 0xe94560));
   projGroup.add(makeLine(corner(hw, -hh), corner(hw, hh), 0xe94560));
   projGroup.add(makeLine(corner(hw, hh), corner(-hw, hh), 0xe94560));
   projGroup.add(makeLine(corner(-hw, hh), corner(-hw, -hh), 0xe94560));
-  const screenLabel = makeTextSprite('retinal image', '#e94560');
+
+  const screenLabel = makeTextSprite('retinal image (screen)', '#e94560');
   screenLabel.position.set(0, screenY + hh + 0.35, screenZ);
-  screenLabel.scale.set(1.6, 0.4, 1);
+  screenLabel.scale.set(1.8, 0.45, 1);
   projGroup.add(screenLabel);
 
-  [ [cubeA, -0.45], [cubeB, 0.45] ].forEach(([cube, offX]) => {
-    const h = cube.geometry.parameters.height;
-    const k = (eyePos.z - screenZ) / (eyePos.z - cube.position.z);
+  // Draw the two silhouettes on the retina screen, side by side.
+  [ [figureA, -0.36], [figureB, 0.36] ].forEach(([fig, offX]) => {
+    const h = fig.children[0].position.y + 0.12 + fig.position.y; // total height
+    const k = (eyePos.z - screenZ) / (eyePos.z - fig.position.z);
     const screenH = h * k;
-    const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.4, screenH),
-      new THREE.MeshBasicMaterial({ color: cube.material.color, side: THREE.DoubleSide })
-    );
+    const mat = new THREE.MeshBasicMaterial({ color: fig.children[1].material.color, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.28, screenH), mat);
     mesh.position.set(offX, screenY, screenZ);
     projGroup.add(mesh);
   });
 
-  document.getElementById('badge1').innerHTML = `Object A: size <b>${objectA.size.toFixed(1)} m</b>, distance <b>${dA.toFixed(1)} m</b> → <b>${angA.toFixed(1)}°</b>`;
-  document.getElementById('badge2').innerHTML = `Object B: size <b>${sizeB.toFixed(2)} m</b>, distance <b>${distB.toFixed(1)} m</b> → <b>${angB.toFixed(1)}°</b>`;
+  // Simple eye icon at the observer point.
+  const eyeBall = new THREE.Mesh(
+    new THREE.SphereGeometry(0.14, 20, 20),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
+  );
+  eyeBall.position.copy(eyePos);
+  projGroup.add(eyeBall);
+  const pupil = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0x111111 })
+  );
+  pupil.position.set(eyePos.x, eyePos.y, eyePos.z - 0.11);
+  projGroup.add(pupil);
+  const eyeLabel = makeTextSprite('eye', '#ffffff');
+  eyeLabel.position.copy(eyePos).add(new THREE.Vector3(0, 0.35, 0));
+  eyeLabel.scale.set(0.9, 0.25, 1);
+  projGroup.add(eyeLabel);
+
+  document.getElementById('badge1').innerHTML = `Figure A: height <b>${objectA.height.toFixed(1)} m</b>, distance <b>${dA.toFixed(1)} m</b> → angular size <b>${angA.toFixed(1)}°</b>`;
+  document.getElementById('badge2').innerHTML = `Figure B: height <b>${sizeB.toFixed(2)} m</b>, distance <b>${distB.toFixed(1)} m</b> → angular size <b>${angB.toFixed(1)}°</b>`;
   document.getElementById('badge3').innerHTML = match
-    ? `<b>Same retinal image</b> — different objects`
-    : `Different retinal images`;
+    ? `<b>Same retinal image</b> — the eye cannot tell them apart`
+    : `Different retinal images — you can tell them apart`;
 }
 
 /* ------------------------------------------------------------------
