@@ -51,10 +51,6 @@
   </div>
 
   <h2>Scene controls</h2>
-  <div class="row">
-    <button id="btn-peephole" class="active">Peephole</button>
-    <button id="btn-orbit">Free orbit</button>
-  </div>
   <button id="btn-true">Show true shape</button>
 
   <div id="ames-controls">
@@ -69,7 +65,7 @@
     <input type="range" id="size-slider" min="0.2" max="3" step="0.05" value="1.5">
   </div>
 
-  <button id="btn-reset">Reset</button>
+  <button id="btn-reset">Reset camera</button>
 
   <h2>Zoom</h2>
   <label>Zoom <span id="zoom-val" class="value">1.0×</span></label>
@@ -123,8 +119,7 @@ let baseOrbitPos = new THREE.Vector3();
 let baseOrbitTarget = new THREE.Vector3();
 let currentZoom = 1.0;
 
-// Peephole: camera fully locked (no controls object at all).
-// Free orbit: rotate + zoom; no pan.
+// Camera is always in orbit mode; Reset returns it to the peephole/eye position.
 function attachControls(target) {
   detachControls();
   controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -426,11 +421,23 @@ function updateOneImage() {
   const distB = parseFloat(document.getElementById('dist-slider').value);
   const sizeB = parseFloat(document.getElementById('size-slider').value);
   objectB.height = sizeB;
-  objectB.z = -distB;
+
+  // Move Object B along the ray from the eye to its retinal-image silhouette.
+  const screenX = 0.36, screenY = 1.35, screenZ = 3.4;
+  const rayDir = new THREE.Vector3(screenX - eyePos.x, screenY - eyePos.y, screenZ - eyePos.z).normalize();
+  const center = eyePos.clone().add(rayDir.clone().multiplyScalar(distB));
+  objectB.x = center.x;
+  objectB.z = center.z;
 
   oneGroup.remove(figureB);
   disposeFigure(figureB);
-  figureB = makeSphereObject(objectB.height, objectB.color, objectB.x, objectB.z);
+  const radiusB = objectB.height / 2;
+  figureB = new THREE.Mesh(
+    new THREE.SphereGeometry(radiusB, 32, 32),
+    new THREE.MeshStandardMaterial({ color: objectB.color, roughness: 0.5 })
+  );
+  figureB.position.set(objectB.x, center.y, objectB.z);
+  figureB.castShadow = true;
   oneGroup.add(figureB);
 
   const dA = eyePos.z - objectA.z, dB = eyePos.z - objectB.z;
@@ -448,7 +455,6 @@ function updateOneImage() {
   });
 
   // Retina diagram: an eye icon + a projection screen between eye and figures.
-  const screenZ = 3.4, screenY = 1.35;
   const frameW = 1.6, frameH = 0.9;
   const corner = (dx, dy) => new THREE.Vector3(dx, screenY + dy, screenZ);
   const hw = frameW / 2, hh = frameH / 2;
@@ -512,13 +518,10 @@ function updateOneImage() {
    UI state
    ------------------------------------------------------------------ */
 let currentScene = 'oneimage';
-let viewMode = 'peephole';
 let showTrue = false;
 
 const btnAmes = document.getElementById('btn-ames');
 const btnOne = document.getElementById('btn-oneimage');
-const btnPeep = document.getElementById('btn-peephole');
-const btnOrbit = document.getElementById('btn-orbit');
 const btnTrue = document.getElementById('btn-true');
 const btnReset = document.getElementById('btn-reset');
 const posSlider = document.getElementById('pos-slider');
@@ -526,35 +529,39 @@ const distSlider = document.getElementById('dist-slider');
 const sizeSlider = document.getElementById('size-slider');
 
 function setCameraForCurrent() {
-  if (viewMode === 'peephole') {
-    detachControls(); // camera is locked: no pan, no zoom, no rotate
-    if (currentScene === 'ames') {
-      camera.position.copy(EYE);
-      camera.lookAt(EYE.x, EYE.y, EYE.z - 10);
-    } else {
-      camera.position.copy(eyePos);
-      camera.lookAt(eyePos.x, eyePos.y, eyePos.z - 10);
-    }
+  if (currentScene === 'ames') {
+    camera.position.copy(EYE);
+    baseOrbitPos.set(8.5, 5, 10.5);
+    baseOrbitTarget.set(-1, 0.7, -4);
+    attachControls(baseOrbitTarget);
   } else {
-    if (currentScene === 'ames') {
-      camera.position.set(8.5, 5, 10.5);
-      baseOrbitPos.set(8.5, 5, 10.5);
-      baseOrbitTarget.set(-1, 0.7, -4);
-      attachControls(baseOrbitTarget);
-    } else {
-      camera.position.set(7, 4.5, 9);
-      baseOrbitPos.set(7, 4.5, 9);
-      baseOrbitTarget.set(0, 0.6, -3);
-      attachControls(baseOrbitTarget);
-    }
-    currentZoom = 1.0;
-    document.getElementById('zoom-slider').value = 1;
-    document.getElementById('zoom-val').textContent = '1.0×';
+    camera.position.copy(eyePos);
+    baseOrbitPos.set(7, 4.5, 9);
+    baseOrbitTarget.set(0, 0.6, -3);
+    attachControls(baseOrbitTarget);
   }
+  currentZoom = 1.0;
+  document.getElementById('zoom-slider').value = 1;
+  document.getElementById('zoom-val').textContent = '1.0×';
+}
+
+function resetCamera() {
+  if (currentScene === 'ames') {
+    camera.position.copy(EYE);
+    camera.lookAt(EYE.x, EYE.y, EYE.z - 10);
+    controls.target.set(EYE.x, EYE.y, EYE.z - 10);
+  } else {
+    camera.position.copy(eyePos);
+    camera.lookAt(eyePos.x, eyePos.y, eyePos.z - 10);
+    controls.target.set(eyePos.x, eyePos.y, eyePos.z - 10);
+  }
+  currentZoom = 1.0;
+  document.getElementById('zoom-slider').value = 1;
+  document.getElementById('zoom-val').textContent = '1.0×';
 }
 
 function applyZoom() {
-  if (!controls || viewMode !== 'orbit') return;
+  if (!controls) return;
   const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
   const baseDist = baseOrbitPos.distanceTo(baseOrbitTarget);
   const newDist = baseDist / currentZoom;
@@ -564,14 +571,12 @@ function applyZoom() {
 function updateUI() {
   btnAmes.classList.toggle('active', currentScene === 'ames');
   btnOne.classList.toggle('active', currentScene === 'oneimage');
-  btnPeep.classList.toggle('active', viewMode === 'peephole');
-  btnOrbit.classList.toggle('active', viewMode === 'orbit');
   btnTrue.classList.toggle('active', showTrue);
   btnTrue.textContent = showTrue ? 'Hide true shape' : 'Show true shape';
   document.getElementById('ames-controls').style.display = currentScene === 'ames' ? 'block' : 'none';
   document.getElementById('oneimage-controls').style.display = currentScene === 'oneimage' ? 'block' : 'none';
 
-  const orbitAmes = currentScene === 'ames' && viewMode === 'orbit';
+  const orbitAmes = currentScene === 'ames';
   trueShapeGroup.visible = orbitAmes && showTrue;
   peepholeMarker.visible = orbitAmes;
   matCeil.opacity = orbitAmes ? 0.15 : 1; // fade ceiling to reveal the trapezoid plan
@@ -579,8 +584,8 @@ function updateUI() {
   oneGroup.visible = currentScene === 'oneimage';
 
   document.getElementById('note-text').innerHTML = currentScene === 'ames'
-    ? 'Through the peephole this looks like an ordinary rectangular room — yet the figure shrinks and grows. ' +
-      '<b>Free orbit</b> + <b>Show true shape</b> reveals the trapezoid. (Drag to orbit, scroll/zoom slider to zoom.)'
+    ? 'The peephole view is the default camera position. Drag to orbit, scroll/zoom slider to zoom. ' +
+      '<b>Show true shape</b> reveals the trapezoid.'
     : 'Adjust size and distance until both objects cast the same retinal projection. ' +
       'Same image, different real objects — one image could be a thousand objects.';
 
@@ -591,8 +596,6 @@ function updateUI() {
 
 btnAmes.onclick = () => { currentScene = 'ames'; updateUI(); };
 btnOne.onclick = () => { currentScene = 'oneimage'; updateUI(); };
-btnPeep.onclick = () => { viewMode = 'peephole'; updateUI(); };
-btnOrbit.onclick = () => { viewMode = 'orbit'; updateUI(); };
 btnTrue.onclick = () => { showTrue = !showTrue; updateUI(); };
 btnReset.onclick = () => {
   posSlider.value = 0;
@@ -604,9 +607,9 @@ btnReset.onclick = () => {
   document.getElementById('zoom-slider').value = 1;
   document.getElementById('zoom-val').textContent = '1.0×';
   currentZoom = 1.0;
-  viewMode = 'peephole';
   showTrue = false;
   updateUI();
+  resetCamera();
 };
 
 posSlider.oninput = () => {
