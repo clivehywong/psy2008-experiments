@@ -63,14 +63,22 @@ const N = 24;
 let trials = [], i = 0, t0 = 0, data = [];
 
 function buildTrials() {
+  // exact 50/50 congruent/incongruent, shuffled; incongruent ink always differs from the word;
+  // no immediate word repeat
+  const types = [];
+  for (let k = 0; k < N/2; k++) { types.push(true, false); }
+  for (let k = types.length - 1; k > 0; k--) {
+    const j = Math.floor(Math.random() * (k + 1));
+    [types[k], types[j]] = [types[j], types[k]];
+  }
   const t = [];
-  while (t.length < N) {
-    const w = COLORS[Math.floor(Math.random()*4)];
-    let ink = COLORS[Math.floor(Math.random()*4)];
-    // balance: half congruent
-    if (t.filter(x=>x.congruent).length < N/2 && Math.random() < 0.5) ink = w;
-    if (t.length && t[t.length-1].word === w[0] && t[t.length-1].ink === ink[0]) continue;
-    t.push({ word: w[0], inkName: ink[0], inkHex: ink[1], congruent: w[0]===ink[0] });
+  for (const congruent of types) {
+    let w;
+    do { w = COLORS[Math.floor(Math.random()*4)]; }
+    while (t.length && t[t.length-1].word === w[0]);
+    const pool = congruent ? [w] : COLORS.filter(c => c[0] !== w[0]);
+    const ink = pool[Math.floor(Math.random()*pool.length)];
+    t.push({ word: w[0], inkName: ink[0], inkHex: ink[1], congruent });
   }
   return t;
 }
