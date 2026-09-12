@@ -45,8 +45,8 @@
 
 <div class="card center" id="intro">
   <h1>Dear Aunt Jane</h1>
-  <p>You will hear <b>two voices</b>, one in each ear, saying a few words quickly.
-     The words from the two ears are <b>interleaved in time</b>.</p>
+  <p>You will hear <b>two voices</b>, one in each ear. On each beat, <b>both ears speak at the same time</b>:
+     one word in your left ear, another word in your right ear. There are three beats.</p>
   <div class="banner">
     <b>Headphones required.</b> Your task, while it plays: <b>shadow the voice in your LEFT ear</b> —
     repeat it aloud (or under your breath) word for word, and keep going.
@@ -86,10 +86,10 @@
 
 <script>
 const STREAMS = {
-  left:  ['Dear', '7', 'Jane'],     // male voice, LEFT ear
-  right: ['9', 'Aunt', '6']         // female voice, RIGHT ear
+  left:  ['Dear', 'seven', 'Jane'],   // male voice, LEFT ear
+  right: ['nine', 'Aunt',  'six']     // female voice, RIGHT ear
 };
-const OPTIONS = ['Dear Aunt Jane', 'Dear 7 Jane', '9 Aunt 6', 'I could not make out words'];
+const OPTIONS = ['Dear Aunt Jane', 'Dear seven Jane', 'nine Aunt six', 'I could not make out words'];
 let chosen = null, switchAns = null; let audio = document.getElementById('audio');
 let DURATION = 6.3;
 audio.addEventListener('loadedmetadata', e => { if (e.target.duration) DURATION = e.target.duration; });
@@ -134,12 +134,12 @@ function results(){
        <div class="slot">RIGHT ear (female):</div>
        <div>${STREAMS.right.map(w=>`<span class="word r">${w}</span>`).join('<span class="muted">·</span>')}</div>
      </div>
-     <p class="muted" style="margin-top:10px">Interleaved in time: Dear · 9 · 7 · Aunt · Jane · 6</p>`;
+     <p class="muted" style="margin-top:10px">Played simultaneously in three pairs: (Dear + nine) · (seven + Aunt) · (Jane + six)</p>`;
   document.getElementById('debrief').innerHTML =
     '<b>What this shows.</b> Neither ear, on its own, contains a sensible phrase — the left ear gives ' +
-    '“Dear 7 Jane”, the right ear “9 Aunt 6”. Yet most listeners who shadow one ear report ' +
-    '<b>“Dear Aunt Jane”</b>: they switched ears mid-stream to follow the <i>meaning</i>. ' +
-    'This is Gray &amp; Wedderburn\'s (1960) classic result.' + (heardMeaning
+     '“Dear seven Jane”, the right ear “nine Aunt six”. Yet most listeners who shadow one ear report ' +
+     '<b>“Dear Aunt Jane”</b>: they switched ears between beats to follow the <i>meaning</i>. ' +
+     'This is Gray &amp; Wedderburn\'s (1960) classic result.' + (heardMeaning
       ? ' You heard it — meaning, not the physical ear, guided where you listened.'
       : ' It is fine if you did not hear the phrase on one pass — with headphones and no repeats it is harder. Try again, or let the class vote.') +
     '<br><br><b>Why it matters.</b> A filter that only passes one physical channel (Broadbent, 1959) cannot ' +
