@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dear Aunt Jane — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 680px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .opt { display: block; width: 100%; text-align: left; margin-top: 10px; padding: 14px 18px; font-size: 16px;
+         color: #eee; background: #0f3460; border: 2px solid #0f3460; border-radius: 10px; cursor: pointer; }
+  .opt:hover { border-color: #e94560; }
+  .opt.sel { border-color: #e94560; background: #153b70; }
+  .opt.ok { border-color: #2ecc71; }
+  .hidden { display: none !important; }
+  .big { font-size: 30px; color: #e94560; font-weight: bold; margin: 8px 0; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  .tag { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: bold; }
+  .tag.l { background: #3498db; color: #fff; } .tag.r { background: #e94560; color: #fff; }
+  input[type=text] { width: 100%; margin-top: 10px; padding: 12px 14px; font-size: 16px; border-radius: 10px;
+                     border: 2px solid #0f3460; background: #0f3460; color: #fff; }
+  input[type=text]:focus { outline: none; border-color: #e94560; }
+  .stream { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; align-items: center; margin-top: 12px; }
+  .stream .slot { color: #9ab; font-size: 14px; }
+  .word { display: inline-block; margin-right: 10px; padding: 4px 12px; border-radius: 8px; font-weight: bold; }
+  .word.l { background: #1d4e79; } .word.r { background: #7a2338; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Dear Aunt Jane</h1>
+  <p>You will hear <b>two voices</b>, one in each ear, saying a few words quickly.
+     The words from the two ears are <b>interleaved in time</b>.</p>
+  <div class="banner">
+    <b>Headphones required.</b> Your task, while it plays: <b>shadow the voice in your LEFT ear</b> —
+    repeat it aloud (or under your breath) word for word, and keep going.
+  </div>
+  <p class="muted">PSY2008 · Gray &amp; Wedderburn (1960) · teaching demo — nothing is recorded or uploaded.</p>
+  <button class="btn" onclick="start()">Play the clip</button>
+</div>
+
+<div class="card center hidden" id="play">
+  <h1>Shadow the LEFT ear</h1>
+  <p>Repeat aloud what you hear in your left ear. If the message seems to jump to the other ear,
+     that is the interesting part — just keep shadowing.</p>
+  <button class="btn sec" id="replay" onclick="playClip()">Play again</button>
+  <div class="big" id="clock">0:06</div>
+  <button class="btn hidden" id="toQs" onclick="questions()">Finished →</button>
+</div>
+
+<div class="card hidden" id="questions">
+  <h1>A few questions</h1>
+  <h2>1. What did you hear?</h2>
+  <div id="q1"></div>
+  <h2>2. Did the voice you were following seem to switch from one ear to the other?</h2>
+  <div id="q2"></div>
+  <h2>3. Anything else you noticed? (optional)</h2>
+  <input type="text" id="free" placeholder="e.g. I heard a clear phrase at first…" autocomplete="off">
+  <button class="btn hidden" id="qNext" onclick="results()">See the answer</button>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>The answer</h1>
+  <div id="resBody"></div>
+  <div class="banner" id="debrief"></div>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<audio id="audio" preload="auto" src="dear_aunt_jane.mp3"></audio>
+
+<script>
+const STREAMS = {
+  left:  ['Dear', '7', 'Jane'],     // male voice, LEFT ear
+  right: ['9', 'Aunt', '6']         // female voice, RIGHT ear
+};
+const OPTIONS = ['Dear Aunt Jane', 'Dear 7 Jane', '9 Aunt 6', 'I could not make out words'];
+let chosen = null, switchAns = null; let audio = document.getElementById('audio');
+let DURATION = 6.3;
+audio.addEventListener('loadedmetadata', e => { if (e.target.duration) DURATION = e.target.duration; });
+
+function show(id){ ['intro','play','questions','results'].forEach(s=>document.getElementById(s).classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden'); }
+function start(){ show('play'); playClip(); }
+function playClip(){
+  audio.currentTime = 0; audio.play();
+  const total = Math.ceil(DURATION);
+  let t = 0; const clock = document.getElementById('clock');
+  clock.textContent = '0:' + String(total).padStart(2,'0');
+  const iv = setInterval(()=>{ t++; const left = Math.max(0, total - t);
+    clock.textContent = '0:' + String(left).padStart(2,'0');
+    if (t >= total){ clearInterval(iv); document.getElementById('toQs').classList.remove('hidden'); } }, 1000);
+  setTimeout(()=>document.getElementById('toQs').classList.remove('hidden'), 3000);
+}
+audio.addEventListener('ended', ()=>document.getElementById('toQs').classList.remove('hidden'));
+
+function questions(){
+  show('questions');
+  document.getElementById('q1').innerHTML = OPTIONS.map((o,i)=>
+    `<button class="opt" data-i="${i}" onclick="pickQ1(this)">${o}</button>`).join('');
+  document.getElementById('q2').innerHTML = ['Yes — it jumped ears','No — it stayed in one ear','Not sure']
+    .map((o,i)=>`<button class="opt" data-i="${i}" onclick="pickQ2(this)">${o}</button>`).join('');
+}
+function pickQ1(b){ chosen = b.textContent; [...document.querySelectorAll('#q1 .opt')].forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); ready(); }
+function pickQ2(b){ switchAns = b.textContent; [...document.querySelectorAll('#q2 .opt')].forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); ready(); }
+function ready(){ if (chosen && switchAns) document.getElementById('qNext').classList.remove('hidden'); }
+
+function results(){
+  const heardMeaning = chosen === 'Dear Aunt Jane';
+  const body = document.getElementById('resBody');
+  body.innerHTML =
+    `<p class="big">You reported: “${chosen}”</p>` +
+    (document.getElementById('free').value.trim()
+      ? `<p class="muted">Your note: “${document.getElementById('free').value.trim()}”</p>` : '') +
+    `<h2>What was actually playing</h2>
+     <div class="stream">
+       <div class="slot">LEFT ear (male):</div>
+       <div>${STREAMS.left.map(w=>`<span class="word l">${w}</span>`).join('<span class="muted">·</span>')}</div>
+       <div class="slot">RIGHT ear (female):</div>
+       <div>${STREAMS.right.map(w=>`<span class="word r">${w}</span>`).join('<span class="muted">·</span>')}</div>
+     </div>
+     <p class="muted" style="margin-top:10px">Interleaved in time: Dear · 9 · 7 · Aunt · Jane · 6</p>`;
+  document.getElementById('debrief').innerHTML =
+    '<b>What this shows.</b> Neither ear, on its own, contains a sensible phrase — the left ear gives ' +
+    '“Dear 7 Jane”, the right ear “9 Aunt 6”. Yet most listeners who shadow one ear report ' +
+    '<b>“Dear Aunt Jane”</b>: they switched ears mid-stream to follow the <i>meaning</i>. ' +
+    'This is Gray &amp; Wedderburn\'s (1960) classic result.' + (heardMeaning
+      ? ' You heard it — meaning, not the physical ear, guided where you listened.'
+      : ' It is fine if you did not hear the phrase on one pass — with headphones and no repeats it is harder. Try again, or let the class vote.') +
+    '<br><br><b>Why it matters.</b> A filter that only passes one physical channel (Broadbent, 1959) cannot ' +
+    'explain this: selecting by meaning requires the unattended message to have been analysed semantically. ' +
+    'It is the evidence that pushed attention theory toward Treisman\'s attenuator and late-selection models — ' +
+    'the next step in the lecture.';
+  show('results');
+}
+</script>
+</body>
+</html>

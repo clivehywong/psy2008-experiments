@@ -4,3 +4,6 @@
 L03/dichotic/*.aiff
 L03/dichotic/*.wav
 L03/dichotic/*_mac.mp3
+
+# regenerable audio masters
+L03/dear-aunt-jane/*.wav

@@ -1,0 +1,50 @@
+{
+  "slot": 0.9,
+  "lead": 0.6,
+  "sample_rate": 44100,
+  "duration": 6.3,
+  "words": [
+    {
+      "ear": "left",
+      "voice": "English_Trustworth_Man",
+      "word": "Dear",
+      "slot": 0,
+      "onset": 0.6
+    },
+    {
+      "ear": "left",
+      "voice": "English_Trustworth_Man",
+      "word": "7",
+      "slot": 2,
+      "onset": 2.4
+    },
+    {
+      "ear": "left",
+      "voice": "English_Trustworth_Man",
+      "word": "Jane",
+      "slot": 4,
+      "onset": 4.2
+    },
+    {
+      "ear": "right",
+      "voice": "English_Graceful_Lady",
+      "word": "9",
+      "slot": 1,
+      "onset": 1.5
+    },
+    {
+      "ear": "right",
+      "voice": "English_Graceful_Lady",
+      "word": "Aunt",
+      "slot": 3,
+      "onset": 3.3
+    },
+    {
+      "ear": "right",
+      "voice": "English_Graceful_Lady",
+      "word": "6",
+      "slot": 5,
+      "onset": 5.1
+    }
+  ]
+}

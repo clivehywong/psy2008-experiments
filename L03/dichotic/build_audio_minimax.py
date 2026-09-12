@@ -13,15 +13,22 @@ from gen_speech_poe import synth
 MALE_VOICE   = os.environ.get("MALE_VOICE", "English_Trustworth_Man")
 FEMALE_VOICE = os.environ.get("FEMALE_VOICE", "English_Graceful_Lady")
 TARGET       = float(os.environ.get("TARGET", "48"))     # seconds, both tracks
+# perceived-loudness balance: male speech band measured ~2 dB hotter at equal LUFS,
+# so the female gets a presence lift and a slightly higher loudness target.
+MALE_I       = float(os.environ.get("MALE_I", "-17.5"))
+FEMALE_I     = float(os.environ.get("FEMALE_I", "-15.5"))
+MALE_AF      = os.environ.get("MALE_AF", "highpass=f=80")
+FEMALE_AF    = os.environ.get("FEMALE_AF", "equalizer=f=2200:width_type=o:width=1.4:g=1.5")
 RATE_LIMIT   = (0.5, 2.0)
 
 def dur(p):
     return float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries",
         "format=duration", "-of", "csv=p=0", p]).decode().strip())
 
-def to_wav(src, out, atempo=1.0):
+def to_wav(src, out, atempo=1.0, loud_i=-16.0, pre=""):
     af = (f"atempo={atempo}," if abs(atempo - 1) > 0.001 else "") + \
-         f"loudnorm=I=-16:TP=-1.5:LRA=11,aformat=sample_fmts=s16:sample_rates=44100,apad,atrim=0:{TARGET}"
+         (f"{pre}," if pre else "") + \
+         f"loudnorm=I={loud_i}:TP=-1.5:LRA=11,aformat=sample_fmts=s16:sample_rates=44100,apad,atrim=0:{TARGET}"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", src, "-af", af, out], check=True)
 
 def main():
@@ -40,9 +47,10 @@ def main():
         print(f"{k:6s} {voices[k]:26s} speed={speed:.2f}  {d:.1f}s -> {d2:.1f}s")
         raw[k] = p2
     # final exact match with a tiny atempo (identical target for both channels)
-    dmax = max(dur(raw['male']), dur(raw['female']))
-    for k in ("male", "female"):
-        to_wav(raw[k], os.path.join(HERE, f"_{k}_pad.wav"), atempo=dur(raw[k]) / TARGET)
+    to_wav(raw['male'], os.path.join(HERE, "_male_pad.wav"), atempo=dur(raw['male']) / TARGET,
+           loud_i=MALE_I, pre=MALE_AF)
+    to_wav(raw['female'], os.path.join(HERE, "_female_pad.wav"), atempo=dur(raw['female']) / TARGET,
+           loud_i=FEMALE_I, pre=FEMALE_AF)
     subprocess.run(["ffmpeg", "-y", "-v", "error",
                     "-i", os.path.join(HERE, "_male_pad.wav"),
                     "-i", os.path.join(HERE, "_female_pad.wav"),
