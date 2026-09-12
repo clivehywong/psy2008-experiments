@@ -8,7 +8,8 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
          min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-         padding: 20px; user-select: none; -webkit-user-select: none; }
+         padding: 20px; user-select: none; -webkit-user-select: none;
+         touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 640px; width: 100%;
           box-shadow: 0 10px 40px rgba(0,0,0,.5); text-align: center; }
   h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
@@ -20,8 +21,9 @@
           justify-content: center; letter-spacing: 2px; }
   #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
   .key { padding: 18px; font-size: 20px; font-weight: bold; border: 3px solid; border-radius: 10px;
-         background: #16213e; cursor: pointer; color: #eee; }
+         background: #16213e; cursor: pointer; color: #eee; touch-action: manipulation; }
   .key:active { transform: scale(.96); }
+  @media (max-width: 430px) { #word { font-size: 52px; } .key { padding: 15px; font-size: 18px; } }
   #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
   .hidden { display: none !important; }
   .big { font-size: 34px; color: #e94560; font-weight: bold; margin: 8px 0; }
@@ -90,7 +92,9 @@ function start() {
   COLORS.forEach(c => {
     const b = document.createElement('button');
     b.className = 'key'; b.style.borderColor = c[1]; b.textContent = c[0];
-    b.onclick = () => answer(c[0]);
+    const respond = () => answer(c[0]);
+    if (window.PointerEvent) b.addEventListener('pointerdown', e => { e.preventDefault(); respond(); });
+    else b.onclick = respond;
     keys.appendChild(b);
   });
   trials = buildTrials(); i = 0; data = [];
@@ -106,9 +110,13 @@ function next() {
   t0 = performance.now();
 }
 
+let lastAns = 0;
 function answer(colorName) {
+  const now = performance.now();
+  if (now - lastAns < 150) return;          // ignore accidental double-taps
+  lastAns = now;
   const tr = trials[i];
-  const rt = performance.now() - t0;
+  const rt = now - t0;
   data.push({ congruent: tr.congruent, correct: colorName === tr.inkName, rt });
   i++;
   next();

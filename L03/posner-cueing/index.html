@@ -8,7 +8,8 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
          min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
-         user-select: none; -webkit-user-select: none; }
+         user-select: none; -webkit-user-select: none;
+         touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 760px; width: 100%;
           box-shadow: 0 10px 40px rgba(0,0,0,.5); }
   .card.center { text-align: center; }
@@ -45,8 +46,10 @@
 
   #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
   .key { padding: 16px; font-size: 18px; font-weight: bold; border: 3px solid #334; border-radius: 10px;
-         background: #16213e; cursor: pointer; color: #eee; }
+         background: #16213e; cursor: pointer; color: #eee; touch-action: manipulation; }
   .key:active { transform: scale(.96); }
+  @media (max-width: 430px) { #stage { height: 240px; } .box { width: 60px; height: 60px; }
+    .target { width: 42px; height: 42px; } .key { font-size: 16px; padding: 14px; } }
   #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
   table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
   td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
@@ -81,8 +84,8 @@
     <div id="fix">+</div>
   </div>
   <div id="keys">
-    <div class="key" onclick="answer('left')">◀ LEFT (F)</div>
-    <div class="key" onclick="answer('right')">RIGHT (J) ▶</div>
+    <div class="key" data-side="left">◀ LEFT (F)</div>
+    <div class="key" data-side="right">RIGHT (J) ▶</div>
   </div>
   <div id="status">Trial 1 / 30</div>
 </div>
@@ -116,6 +119,13 @@ document.addEventListener('keydown', e => {
   if (!accepting) return;
   if (e.key === 'f' || e.key === 'F') answer('left');
   if (e.key === 'j' || e.key === 'J') answer('right');
+});
+
+// touch/click response: pointerdown fires earlier than click (better RT, no 300 ms tap delay)
+document.querySelectorAll('#keys .key').forEach(el => {
+  const go = e => { if (e.cancelable) e.preventDefault(); answer(el.dataset.side); };
+  if (window.PointerEvent) el.addEventListener('pointerdown', go);
+  else el.addEventListener('click', go);
 });
 
 function startTask(){ show('task'); i = 0; data = []; next(); }

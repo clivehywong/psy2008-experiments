@@ -8,7 +8,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
          min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-         padding: 20px; }
+         padding: 20px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 680px; width: 100%;
           box-shadow: 0 10px 40px rgba(0,0,0,.5); }
   .card.center { text-align: center; }
@@ -19,6 +19,7 @@
   .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
          color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
   .btn:active { transform: scale(.97); }
+  .btn, .opt, .key { touch-action: manipulation; }
   .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
   .btn.ghost { background: #0f3460; }
   .opt { display: block; width: 100%; text-align: left; margin-top: 10px; padding: 14px 18px; font-size: 16px;
@@ -142,10 +143,16 @@ function show(id) {
 let actx = null;
 function playTest() {
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
-  const osc = actx.createOscillator(), pan = actx.createStereoPanner();
+  if (actx.state === 'suspended' && actx.resume) actx.resume();   // iOS Safari starts suspended
+  const osc = actx.createOscillator();
   osc.type = 'sine'; osc.frequency.value = 440;
-  osc.connect(pan); pan.connect(actx.destination);
-  pan.pan.value = -1;                                  // hard left
+  if (actx.createStereoPanner) {                                  // hard-pan left
+    const pan = actx.createStereoPanner(); pan.pan.value = -1;
+    osc.connect(pan); pan.connect(actx.destination);
+  } else {                                                        // fallback: route into the left channel only
+    const merger = actx.createChannelMerger(2);
+    osc.connect(merger, 0, 0); merger.connect(actx.destination);
+  }
   osc.start(); setTimeout(() => { osc.stop(); }, 1200);
   $('checkAns').classList.remove('hidden');
   $('checkStatus').textContent = 'Tone played. Now answer below.';
