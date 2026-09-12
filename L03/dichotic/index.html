@@ -53,7 +53,7 @@
   <p>You will hear <b>two voices at the same time</b> — a male voice in your <b>left ear</b> and a
      female voice in your <b>right ear</b> — for about one minute.</p>
   <p>Your job is to <b>shadow one voice</b>: repeat what it says, word for word, as best you can.
-     Ignore the other voice.</p>
+     Ignore the other voice. The clip is short — about 48 seconds.</p>
   <div class="banner">
     <b>Headphones required.</b> Without stereo headphones the two voices blend and the demo will not work.
     Do it somewhere you can speak aloud (or whisper).
@@ -116,14 +116,14 @@
 
 <script>
 const AUDIO_SRC = 'dichotic_stereo.mp3';
-const DURATION = 61;               // seconds, for the countdown display
+let DURATION = 48;                 // seconds; refreshed from audio metadata on load
 const VOICES = {
   male:   { ear: 'left',  tag: 'MALE VOICE — LEFT EAR',   cls: 'male' },
   female: { ear: 'right', tag: 'FEMALE VOICE — RIGHT EAR', cls: 'female' }
 };
 const CONTENT = {
-  male:   { about: 'Bicycle design',  distract: ['Volcanoes', 'Cooking', 'Railways'] },
-  female: { about: 'Bee navigation',  distract: ['Ocean currents', 'City transport', 'Bird migration'] }
+  male:   { about: 'Walking to work',       distract: ['A holiday flight', 'Learning to swim', 'A school trip'] },
+  female: { about: 'A grandmother\'s garden', distract: ['A train journey', 'Fixing a car', 'A football match'] }
 };
 
 let order = Math.random() < 0.5 ? ['male', 'female'] : ['female', 'male'];
@@ -285,6 +285,8 @@ function finish() {
   show('results');
   window.scrollTo(0, 0);
 }
+
+$('audio').addEventListener('loadedmetadata', e => { if (e.target.duration) DURATION = Math.round(e.target.duration); });
 </script>
 </body>
 </html>

@@ -3,3 +3,4 @@
 # regenerable audio masters (build_audio.sh)
 L03/dichotic/*.aiff
 L03/dichotic/*.wav
+L03/dichotic/*_mac.mp3
