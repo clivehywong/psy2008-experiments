@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dichotic Listening — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         padding: 20px; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 680px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 19px; margin: 18px 0 6px; color: #eee; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .btn.ghost { background: #0f3460; }
+  .opt { display: block; width: 100%; text-align: left; margin-top: 10px; padding: 14px 18px; font-size: 16px;
+         color: #eee; background: #0f3460; border: 2px solid #0f3460; border-radius: 10px; cursor: pointer; }
+  .opt:hover { border-color: #e94560; }
+  .opt.sel { border-color: #e94560; background: #153b70; }
+  .opt.ok { border-color: #2ecc71; }
+  .opt.no { border-color: #e74c3c; }
+  .hidden { display: none !important; }
+  .big { font-size: 34px; color: #e94560; font-weight: bold; margin: 8px 0; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  .tag { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: bold; }
+  .tag.male { background: #3498db; color: #fff; }
+  .tag.female { background: #e94560; color: #fff; }
+  #progress { height: 8px; background: #0f3460; border-radius: 999px; overflow: hidden; margin-top: 16px; }
+  #bar { height: 100%; width: 0%; background: #2ecc71; transition: width .2s; }
+  input[type=text] { width: 100%; margin-top: 10px; padding: 12px 14px; font-size: 16px; border-radius: 10px;
+                     border: 2px solid #0f3460; background: #0f3460; color: #fff; }
+  input[type=text]:focus { outline: none; border-color: #e94560; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 15px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+</style>
+</head>
+<body>
+
+<!-- 1. INTRO -->
+<div class="card center" id="intro">
+  <h1>Dichotic Listening</h1>
+  <p>You will hear <b>two voices at the same time</b> — a male voice in your <b>left ear</b> and a
+     female voice in your <b>right ear</b> — for about one minute.</p>
+  <p>Your job is to <b>shadow one voice</b>: repeat what it says, word for word, as best you can.
+     Ignore the other voice.</p>
+  <div class="banner">
+    <b>Headphones required.</b> Without stereo headphones the two voices blend and the demo will not work.
+    Do it somewhere you can speak aloud (or whisper).
+  </div>
+  <p class="muted">PSY2008 · Cherry (1953) · teaching demo — nothing is recorded or uploaded.</p>
+  <button class="btn" onclick="checkStart()">Start</button>
+</div>
+
+<!-- 2. HEADPHONE CHECK -->
+<div class="card center hidden" id="check">
+  <h1>Headphone check</h1>
+  <p id="checkStatus">Press the button, then tell us where you heard the tone.</p>
+  <button class="btn sec" onclick="playTest()">Play test tone</button>
+  <div id="checkAns" class="hidden">
+    <p style="margin-top:16px"><b>Where did you hear the tone?</b> (It should be in your LEFT ear.)</p>
+    <button class="opt" onclick="checkEar('left')">Left ear</button>
+    <button class="opt" onclick="checkEar('right')">Right ear</button>
+    <button class="opt" onclick="checkEar('both')">Both / not sure</button>
+  </div>
+</div>
+
+<!-- 3. BLOCK INTRO -->
+<div class="card center hidden" id="blockIntro">
+  <h1 id="blockTitle"></h1>
+  <p id="blockInstr"></p>
+  <div class="banner" id="blockTip"></div>
+  <button class="btn" onclick="play()">Play the two voices</button>
+</div>
+
+<!-- 4. PLAYING -->
+<div class="card center hidden" id="playing">
+  <h1 id="playTitle">Listening…</h1>
+  <p id="playInstr"></p>
+  <div class="big" id="clock">1:01</div>
+  <div id="progress"><div id="bar"></div></div>
+  <p class="muted" id="playHint">Keep repeating the shadowed voice out loud until the whole clip ends.</p>
+  <button class="btn sec hidden" id="toQs" onclick="showQuestions()">I have finished listening →</button>
+</div>
+
+<!-- 5. QUESTIONS -->
+<div class="card hidden" id="questions">
+  <h1 id="qTitle"></h1>
+  <div id="qAttended"></div>
+  <div id="qUnattended"></div>
+  <div id="qLeak"></div>
+  <button class="btn hidden" id="qNext" onclick="submitBlock()">Continue</button>
+</div>
+
+<!-- 6. RESULTS / DEBRIEF -->
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div id="resBody"></div>
+  <div class="banner" id="debrief"></div>
+  <p class="muted">Bring your answer to the tutorial. Next step in the lecture: if the unattended channel is
+     filtered out, how did Moray's participants hear their own name?</p>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<audio id="audio" preload="auto" src="dichotic_stereo.mp3"></audio>
+
+<script>
+const AUDIO_SRC = 'dichotic_stereo.mp3';
+const DURATION = 61;               // seconds, for the countdown display
+const VOICES = {
+  male:   { ear: 'left',  tag: 'MALE VOICE — LEFT EAR',   cls: 'male' },
+  female: { ear: 'right', tag: 'FEMALE VOICE — RIGHT EAR', cls: 'female' }
+};
+const CONTENT = {
+  male:   { about: 'Bicycle design',  distract: ['Volcanoes', 'Cooking', 'Railways'] },
+  female: { about: 'Bee navigation',  distract: ['Ocean currents', 'City transport', 'Bird migration'] }
+};
+
+let order = Math.random() < 0.5 ? ['male', 'female'] : ['female', 'male'];
+let block = 0;                     // 0 = first block, 1 = second
+let answers = {};                  // answers[voice] = { attended, unattended, leak }
+let cur = {};                      // in-progress answers for the current block
+let timer = null;
+
+const $ = id => document.getElementById(id);
+function show(id) {
+  ['intro','check','blockIntro','playing','questions','results'].forEach(s => $(s).classList.add('hidden'));
+  $(id).classList.remove('hidden');
+}
+
+/* ---------- headphone check (Web Audio: no extra asset) ---------- */
+let actx = null;
+function playTest() {
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  const osc = actx.createOscillator(), pan = actx.createStereoPanner();
+  osc.type = 'sine'; osc.frequency.value = 440;
+  osc.connect(pan); pan.connect(actx.destination);
+  pan.pan.value = -1;                                  // hard left
+  osc.start(); setTimeout(() => { osc.stop(); }, 1200);
+  $('checkAns').classList.remove('hidden');
+  $('checkStatus').textContent = 'Tone played. Now answer below.';
+}
+function checkEar(side) {
+  if (side === 'left') {
+    $('check').innerHTML =
+      '<h1>Headphones ready</h1><p>You heard it on the left. Your stereo setup works — the two voices will ' +
+      'be properly separated.</p><button class="btn" onclick="startBlock()">Begin</button>';
+  } else {
+    $('check').innerHTML =
+      '<h1>Check your headphones</h1><p>You did not report the tone on the left. Either your headphones are ' +
+      'not in stereo, they are swapped, or you are on a single speaker.</p>' +
+      '<p class="muted">The demo needs true stereo: left ear ≠ right ear. Fix your audio and reload — or continue ' +
+      'anyway and treat the result as a demonstration only.</p>' +
+      '<button class="btn sec" onclick="checkStart()">Try again</button>' +
+      '<button class="btn ghost" onclick="startBlock()">Continue anyway</button>';
+  }
+}
+function checkStart() { show('check'); $('check').innerHTML =
+  '<h1>Headphone check</h1><p id="checkStatus">Press the button, then tell us where you heard the tone.</p>' +
+  '<button class="btn sec" onclick="playTest()">Play test tone</button>' +
+  '<div id="checkAns" class="hidden"><p style="margin-top:16px"><b>Where did you hear the tone?</b> ' +
+  '(It should be in your LEFT ear.)</p>' +
+  '<button class="opt" data-side="left" onclick="checkEar(this.dataset.side)">Left ear</button>' +
+  '<button class="opt" data-side="right" onclick="checkEar(this.dataset.side)">Right ear</button>' +
+  '<button class="opt" data-side="both" onclick="checkEar(this.dataset.side)">Both / not sure</button></div>';
+}
+
+/* ---------- blocks ---------- */
+function startBlock() {
+  const attended = order[block];
+  const other = order[1 - block];
+  $('blockTitle').textContent = 'Part ' + (block + 1) + ' of 2';
+  $('blockInstr').innerHTML =
+    'Shadow the <span class="tag ' + VOICES[attended].cls + '">' + VOICES[attended].tag + '</span>' +
+    '<br>Repeat it aloud, word for word. <b>Ignore</b> the ' + (other === 'male' ? 'male' : 'female') + ' voice.';
+  $('blockTip').innerHTML = other === 'male'
+    ? '<b>Trick:</b> the ignored voice is in your other ear. Do not switch to it, even if it becomes tempting.'
+    : '<b>Trick:</b> keep your voice going; do not let the other speaker pull you across.';
+  show('blockIntro');
+}
+
+function play() {
+  const attended = order[block];
+  $('playInstr').innerHTML = 'Shadows: <span class="tag ' + VOICES[attended].cls + '">' +
+    VOICES[attended].tag + '</span>';
+  show('playing');
+  const a = $('audio');
+  a.currentTime = 0;
+  a.play();
+  let t = 0;
+  clearInterval(timer);
+  timer = setInterval(() => {
+    t++;
+    const left = Math.max(0, DURATION - t);
+    $('clock').textContent = Math.floor(left/60) + ':' + String(left % 60).padStart(2, '0');
+    $('bar').style.width = Math.min(100, (t/DURATION)*100) + '%';
+  }, 1000);
+  a.onended = () => { clearInterval(timer); $('bar').style.width = '100%'; $('clock').textContent = '0:00'; $('toQs').classList.remove('hidden'); };
+  setTimeout(() => $('toQs').classList.remove('hidden'), 3000);   // in case onended is missed
+}
+
+/* ---------- questions ---------- */
+function showQuestions() {
+  clearInterval(timer);
+  try { $('audio').pause(); } catch (e) {}
+  const attended = order[block], other = order[1 - block];
+  cur = {};
+  $('qTitle').innerHTML = 'Part ' + (block + 1) + ' — a few questions';
+  $('qAttended').innerHTML =
+    '<h2>1. The voice you shadowed</h2><p>What was the <b>' + attended + '</b> voice about?</p>' +
+    optsHTML('attended', [CONTENT[attended].about].concat(CONTENT[attended].distract).sort(() => Math.random() - 0.5), attended);
+  $('qUnattended').innerHTML =
+    '<h2>2. The voice you ignored</h2><p>What was the <b>' + other + '</b> voice about?</p>' +
+    optsHTML('unattended', ["I have no idea"].concat([CONTENT[other].about].concat(CONTENT[other].distract).sort(() => Math.random() - 0.5)), other);
+  $('qLeak').innerHTML =
+    '<h2>3. Leaks</h2><p>Did any word or phrase from the ignored ear break through? (optional)</p>' +
+    '<input type="text" id="leakInput" placeholder="e.g. nothing, or a word you caught…" autocomplete="off">';
+  $('qNext').classList.add('hidden');
+  show('questions');
+  window.scrollTo(0, 0);
+}
+
+function optsHTML(kind, options, voice) {
+  return options.map((o, i) =>
+    '<button class="opt" data-kind="' + kind + '" data-voice="' + voice + '" data-i="' + i + '" ' +
+    'data-correct="' + (o === CONTENT[voice].about ? '1' : '0') + '" ' +
+    'onclick="pick(this)">' + o + '</button>').join('');
+}
+
+function pick(el) {
+  const kind = el.dataset.kind;
+  document.querySelectorAll('.opt[data-kind="' + kind + '"]').forEach(b => {
+    b.classList.remove('sel','ok','no');
+    if (b.dataset.correct === '1') b.classList.add('ok');
+  });
+  el.classList.add('sel');
+  cur[kind] = el.textContent;
+  const need = cur.attended && cur.unattended;
+  if (need) $('qNext').classList.remove('hidden');
+}
+
+function submitBlock() {
+  cur.leak = ($('leakInput') && $('leakInput').value.trim()) || '';
+  answers[order[block]] = cur;
+  block++;
+  if (block < 2) { startBlock(); } else { finish(); }
+}
+
+/* ---------- results & debrief ---------- */
+function finish() {
+  const rows = order.map(v => {
+    const a = answers[v];
+    const correct = a.attended === CONTENT[v].about;
+    return '<tr><td>Shadowed ' + v + '</td><td>' + (correct ? '✔' : '✘') + '</td>' +
+           '<td>' + a.unattended + '</td><td>' + (a.leak || '—') + '</td></tr>';
+  }).join('');
+  const gotUnattended = order.filter(v => {
+    const other = v === 'male' ? 'female' : 'male';
+    return answers[v].unattended === CONTENT[other].about;
+  }).length;
+
+  $('resBody').innerHTML =
+    '<table><tr><th>You shadowed</th><th>Content correct</th><th>What the ignored voice was about</th>' +
+    '<th>Leak noticed</th></tr>' + rows + '</table>' +
+    '<p class="big">Ignored-channel content recovered: ' + gotUnattended + ' / 2</p>';
+
+  $('debrief').innerHTML =
+    '<b>What this shows.</b> With shadowing, people can report almost nothing about the ignored message — ' +
+    'its content, not just its words, is unavailable. What survives is <b>physical</b>: the voice was male or ' +
+    'female, loud or quiet, fast or slow. That is Colin Cherry\'s (1953) founding result, and it is why the ' +
+    '1950s asked <i>where</i> the filter sits.<br><br>' +
+    'If you recovered the ignored topic, remember the odds: with four options you had a 25% chance of guessing. ' +
+    'And if a specific word did break through — especially something personally relevant — you have just met ' +
+    'Moray\'s (1959) name effect, which the lecture uses to break Broadbent\'s filter.';
+  show('results');
+  window.scrollTo(0, 0);
+}
+</script>
+</body>
+</html>
