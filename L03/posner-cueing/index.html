@@ -30,19 +30,18 @@
            overflow: hidden; }
   #fix { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 46px;
          font-weight: bold; color: #cdd; line-height: 1; }
-  .box { position: absolute; top: 50%; width: 78px; height: 78px; border: 3px solid #3a4a6a; border-radius: 10px;
+  .box { position: absolute; top: 50%; width: 78px; height: 78px; border: 2px solid #2b3a58; border-radius: 10px;
          transform: translateY(-50%); }
   .box.left  { left: 12%; }
   .box.right { right: 12%; }
-  .box.lit { border-color: #e94560; background: #241a33; }
   .target { position: absolute; top: 50%; width: 54px; height: 54px; background: #f5d142; border-radius: 8px;
             transform: translateY(-50%); }
   .target.left  { left: calc(12% + 12px); }
   .target.right { right: calc(12% + 12px); }
-  .cue { position: absolute; top: 50%; transform: translateY(-50%); font-size: 40px; color: #7fd1ff; font-weight: bold; }
-  .cue.left  { left: 12%; }
-  .cue.right { right: 12%; }
-  .cue.neutral { left: 50%; transform: translate(-50%,-50%); color: #8a9; letter-spacing: 4px; }
+  /* central symbolic cue, above the fixation cross (Posner's arrow version) */
+  .cue { position: absolute; left: 50%; top: 24%; transform: translate(-50%,-50%); font-size: 52px;
+         color: #7fd1ff; font-weight: bold; line-height: 1; }
+  .cue.neutral { color: #8fa8c8; }
 
   #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
   .key { padding: 16px; font-size: 18px; font-weight: bold; border: 3px solid #334; border-radius: 10px;
@@ -67,13 +66,15 @@
 
 <div class="card center" id="intro">
   <h1>Posner's Spatial Cueing</h1>
-  <p>Keep your eyes on the central <b>+</b>. A <b>cue</b> appears, then a <b>yellow square</b> appears on the
-     left or the right. Press the key for the side the square appears on — as fast as you can.</p>
+  <p>Keep your eyes on the central <b>+</b>. An <b>arrow</b> appears above the cross, pointing left or right.
+     Then a <b>yellow square</b> appears on the left or the right. Press the key for the side the square
+     appears on — as fast as you can.</p>
   <div class="banner">
     <b>Keep your hands ready:</b> <b>F</b> = left, <b>J</b> = right (or tap the buttons on a phone).
-    Eyes stay on the cross — do <i>not</i> move them to the cue.
+    Keep your <b>eyes on the cross</b> — do <i>not</i> look at the arrow, and do not move your eyes to the target.
   </div>
-  <p><b>30 trials</b> · about 3 minutes. The cue is sometimes correct, sometimes wrong, sometimes neutral.</p>
+  <p><b>30 trials</b> · about 3 minutes. The arrow is sometimes correct, sometimes wrong, sometimes neutral
+     (a double-headed arrow).</p>
   <button class="btn" onclick="startTask()">Start</button>
 </div>
 
@@ -131,7 +132,6 @@ document.querySelectorAll('#keys .key').forEach(el => {
 function startTask(){ show('task'); i = 0; data = []; next(); }
 
 function clearStage(){
-  $('boxL').classList.remove('lit'); $('boxR').classList.remove('lit');
   document.querySelectorAll('.target,.cue').forEach(el => el.remove());
 }
 
@@ -145,24 +145,20 @@ function next(){
 }
 
 function cuePhase(){
-  let c;
-  if (cond === 'neutral') {
-    c = document.createElement('div'); c.className = 'cue neutral'; c.textContent = '◆ ◆';
-    $('boxL').classList.add('lit'); $('boxR').classList.add('lit');
+  let c = document.createElement('div');
+  if (cond === 'neutral') {                       // double-headed arrow: no spatial information
+    c.className = 'cue neutral'; c.textContent = '↔';
   } else {
     const cuedSide = cond === 'valid' ? side : (side === 'left' ? 'right' : 'left');
-    c = document.createElement('div'); c.className = 'cue ' + cuedSide; c.textContent = cuedSide === 'left' ? '◀' : '▶';
-    $(cuedSide === 'left' ? 'boxL' : 'boxR').classList.add('lit');
+    c.className = 'cue'; c.textContent = cuedSide === 'left' ? '←' : '→';   // central arrow, above fixation
   }
   $('stage').appendChild(c);
-  setTimeout(() => { document.querySelectorAll('.cue').forEach(el => el.remove());
-                     $('boxL').classList.remove('lit'); $('boxR').classList.remove('lit'); }, CUE_MS);
-  setTimeout(targetPhase, CUE_TO_TARGET);                                                  // then the target
+  setTimeout(() => document.querySelectorAll('.cue').forEach(el => el.remove()), CUE_MS);
+  setTimeout(targetPhase, CUE_TO_TARGET);
 }
 
 function targetPhase(){
   document.querySelectorAll('.cue').forEach(el => el.remove());
-  $('boxL').classList.remove('lit'); $('boxR').classList.remove('lit');
   const t = document.createElement('div'); t.className = 'target ' + side;
   $('stage').appendChild(t);
   tTarget = performance.now();
@@ -217,12 +213,14 @@ function finish(){
     `<b>What this shows.</b> ` + (effect > 5
       ? `Your valid-cue trials were about <b>${effect} ms faster</b> than invalid-cue trials, even though your eyes never moved. `
       : `Your effect came out at ${effect} ms — small or reversed. This can happen with few trials, if the eyes drifted to the cue, or if you were trading speed for accuracy. `) +
-    `The cue moved your <b>covert attention</b> ahead of your eyes: a valid cue gets the spotlight there early, an invalid cue sends it to the wrong place and it must be dragged back.<br><br>` +
-    `<b>The paradigm (Posner, 1980).</b> Participants keep central fixation; a peripheral cue predicts the target's
-     location on ~80% of trials. Valid cues speed responses, invalid cues slow them — typically a 20–60 ms
-     difference — and the effect appears even when eye movements are ruled out (or measured). This is the classic
-     evidence that attention is a movable <i>spotlight</i> that can be deployed independently of gaze —
-     the same covert attention later used to explain the same-object advantage (Egly et al., 1994).`;
+    `The arrow moved your <b>covert attention</b> ahead of your eyes: a valid cue gets the spotlight there early, an invalid cue sends it to the wrong place and it must be dragged back.<br><br>` +
+    `<b>The paradigm (Posner, 1980).</b> This is the central symbolic-cue version: the arrow appears above the
+     fixation cross and points left or right. On most trials it predicts the target's side (valid); sometimes it
+     points the other way (invalid); a double arrow carries no information (neutral). Valid cues speed responses
+     and invalid cues slow them — typically a 20–60 ms difference — and the effect appears even when eye movements
+     are ruled out (or measured). This is the classic evidence that attention is a movable <i>spotlight</i> that
+     can be deployed independently of gaze — the same covert attention later used to explain the same-object
+     advantage (Egly et al., 1994).`;
 }
 </script>
 </body>
