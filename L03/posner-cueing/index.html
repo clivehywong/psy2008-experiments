@@ -41,7 +41,6 @@
   /* central symbolic cue, above the fixation cross (Posner's arrow version) */
   .cue { position: absolute; left: 50%; top: 24%; transform: translate(-50%,-50%); font-size: 52px;
          color: #7fd1ff; font-weight: bold; line-height: 1; }
-  .cue.neutral { color: #8fa8c8; }
 
   #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
   .key { padding: 16px; font-size: 18px; font-weight: bold; border: 3px solid #334; border-radius: 10px;
@@ -57,7 +56,6 @@
   .barrow { display: grid; grid-template-columns: 90px 1fr 70px; gap: 10px; align-items: center; margin: 6px 0; }
   .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
   .barfill { height: 100%; border-radius: 6px; background: #e94560; }
-  .barfill.neutral { background: #6c8ebf; }
   .barfill.valid { background: #2ecc71; }
   .big { font-size: 30px; color: #e94560; font-weight: bold; margin: 8px 0; }
 </style>
@@ -73,8 +71,9 @@
     <b>Keep your hands ready:</b> <b>F</b> = left, <b>J</b> = right (or tap the buttons on a phone).
     Keep your <b>eyes on the cross</b> — do <i>not</i> look at the arrow, and do not move your eyes to the target.
   </div>
-  <p><b>30 trials</b> · about 3 minutes. The arrow is sometimes correct, sometimes wrong, sometimes neutral
-     (a double-headed arrow).</p>
+  <p><b>32 trials</b> · about 3 minutes. The arrow is correct on half the trials and wrong on the other half
+     (16 valid, 16 invalid); left and right targets are equally frequent, and neither side nor condition repeats
+     more than three times in a row.</p>
   <button class="btn" onclick="startTask()">Start</button>
 </div>
 
@@ -103,13 +102,30 @@
 </div>
 
 <script>
-const N = 30;
+const N = 32;
 const CUE_TO_TARGET = 500;      // ms, cue onset to target onset (SOA)
 const FIX_MS = 600, CUE_MS = 150, MAX_RT = 1400, ITI = 550;
-const CONDITIONS = [];          // 12 valid, 12 invalid, 6 neutral
-for (let i = 0; i < 12; i++) CONDITIONS.push('valid','invalid');
-for (let i = 0; i < 6; i++) CONDITIONS.push('neutral');
-CONDITIONS.sort(() => Math.random() - 0.5);
+// Balanced factorial: 8 trials in each cell (valid/invalid × left/right) = 32 trials.
+// Shuffled under constraints so neither the target side nor the cue condition repeats
+// more than 3 times in a row (pure independent randomness can otherwise produce long
+// runs — e.g. 10+ targets on the same side, which feels broken to participants).
+const BASE = [];
+for (let k = 0; k < 8; k++) BASE.push(['valid','left'], ['valid','right'], ['invalid','left'], ['invalid','right']);
+function buildOrder(){
+  for (let attempt = 0; attempt < 2000; attempt++) {
+    const arr = BASE.slice();
+    for (let k = arr.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [arr[k], arr[j]] = [arr[j], arr[k]]; }
+    let ok = true, lastSide = '', runSide = 0, lastCond = '', runCond = 0;
+    for (const [c, s] of arr) {
+      runSide = (s === lastSide) ? runSide + 1 : 1; lastSide = s;
+      runCond = (c === lastCond) ? runCond + 1 : 1; lastCond = c;
+      if (runSide > 3 || runCond > 3) { ok = false; break; }
+    }
+    if (ok) return arr;
+  }
+  return BASE.slice();                                   // fallback (essentially never reached)
+}
+const TRIALS = buildOrder();
 
 let i = 0, cond, side, tTarget = 0, accepting = false, data = [], missTimer = null;
 const $ = id => document.getElementById(id);
@@ -137,21 +153,16 @@ function clearStage(){
 
 function next(){
   clearStage();
-  if (i >= CONDITIONS.length) return finish();
-  cond = CONDITIONS[i];
-  side = Math.random() < 0.5 ? 'left' : 'right';
+  if (i >= TRIALS.length) return finish();
+  [cond, side] = TRIALS[i];
   $('status').textContent = `Trial ${i+1} / ${N}`;
   setTimeout(cuePhase, FIX_MS);
 }
 
 function cuePhase(){
-  let c = document.createElement('div');
-  if (cond === 'neutral') {                       // double-headed arrow: no spatial information
-    c.className = 'cue neutral'; c.textContent = '↔';
-  } else {
-    const cuedSide = cond === 'valid' ? side : (side === 'left' ? 'right' : 'left');
-    c.className = 'cue'; c.textContent = cuedSide === 'left' ? '←' : '→';   // central arrow, above fixation
-  }
+  const c = document.createElement('div');
+  const cuedSide = cond === 'valid' ? side : (side === 'left' ? 'right' : 'left');
+  c.className = 'cue'; c.textContent = cuedSide === 'left' ? '←' : '→';     // central arrow, above fixation
   $('stage').appendChild(c);
   setTimeout(() => document.querySelectorAll('.cue').forEach(el => el.remove()), CUE_MS);
   setTimeout(targetPhase, CUE_TO_TARGET);
@@ -191,8 +202,8 @@ function finish(){
   show('results');
   const ok = d => d.correct && !d.timeout;
   const grp = c => data.filter(d => d.cond === c && ok(d)).map(d => d.rt);
-  const v = grp('valid'), inv = grp('invalid'), neu = grp('neutral');
-  const mv = Math.round(mean(v)), mi = Math.round(mean(inv)), mn = Math.round(mean(neu));
+  const v = grp('valid'), inv = grp('invalid');
+  const mv = Math.round(mean(v)), mi = Math.round(mean(inv));
   const acc = Math.round(100 * data.filter(ok).length / data.length);
   const effect = mi - mv;
 
@@ -201,11 +212,10 @@ function finish(){
     `<tr><th>Cue</th><th>Mean RT</th><th>Trials (correct)</th></tr>
      <tr><td>Valid (cue = target side)</td><td>${mv} ms</td><td>${v.length}</td></tr>
      <tr><td>Invalid (cue = other side)</td><td>${mi} ms</td><td>${inv.length}</td></tr>
-     <tr><td>Neutral (both boxes)</td><td>${mn} ms</td><td>${neu.length}</td></tr>
      <tr><td colspan="3">Accuracy: ${acc}%</td></tr>`;
 
-  const max = Math.max(mv, mi, mn, 1);
-  $('bars').innerHTML = [['Valid', mv, 'valid'], ['Neutral', mn, 'neutral'], ['Invalid', mi, '']]
+  const max = Math.max(mv, mi, 1);
+  $('bars').innerHTML = [['Valid', mv, 'valid'], ['Invalid', mi, '']]
     .map(([lab, val, cls]) =>
       `<div class="barrow"><div>${lab}</div><div class="bartrack"><div class="barfill ${cls}" style="width:${Math.round(100*val/max)}%"></div></div><div>${val} ms</div></div>`).join('');
 
@@ -215,10 +225,9 @@ function finish(){
       : `Your effect came out at ${effect} ms — small or reversed. This can happen with few trials, if the eyes drifted to the cue, or if you were trading speed for accuracy. `) +
     `The arrow moved your <b>covert attention</b> ahead of your eyes: a valid cue gets the spotlight there early, an invalid cue sends it to the wrong place and it must be dragged back.<br><br>` +
     `<b>The paradigm (Posner, 1980).</b> This is the central symbolic-cue version: the arrow appears above the
-     fixation cross and points left or right. On most trials it predicts the target's side (valid); sometimes it
-     points the other way (invalid); a double arrow carries no information (neutral). Valid cues speed responses
-     and invalid cues slow them — typically a 20–60 ms difference — and the effect appears even when eye movements
-     are ruled out (or measured). This is the classic evidence that attention is a movable <i>spotlight</i> that
+     fixation cross and points left or right. On half the trials it predicts the target's side correctly (valid);
+     on the other half it points the wrong way (invalid). Valid cues speed responses and invalid cues slow them —
+     typically a 20–60 ms difference — and the effect appears even when eye movements are ruled out (or measured). This is the classic evidence that attention is a movable <i>spotlight</i> that
      can be deployed independently of gaze — the same covert attention later used to explain the same-object
      advantage (Egly et al., 1994).`;
 }
