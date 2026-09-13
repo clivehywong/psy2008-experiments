@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sperling (1960) — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 720px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+
+  #grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 340px; margin: 18px auto;
+          padding: 14px; background: #bfe3d9; border-radius: 10px; min-height: 180px; }
+  #grid div { display: flex; align-items: center; justify-content: center; height: 44px; font-size: 30px;
+              font-weight: bold; font-family: 'Courier New', monospace; color: #123; }
+  #grid.blank div { color: transparent; }
+  #cuerow { font-size: 15px; color: #aab; min-height: 22px; margin-top: 6px; }
+  input[type=text] { width: 100%; margin-top: 12px; padding: 14px; font-size: 20px; letter-spacing: 3px;
+                     text-transform: uppercase; border-radius: 10px; border: 2px solid #0f3460; background: #0f3460;
+                     color: #fff; text-align: center; font-family: 'Courier New', monospace; }
+  input[type=text]:focus { outline: none; border-color: #e94560; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 150px 1fr 80px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #e94560; }
+  .barfill.p { background: #2ecc71; }
+  .barfill.d { background: #6c8ebf; }
+  .big { font-size: 28px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Sperling (1960) — Iconic Memory</h1>
+  <p>You will see a <b>3 × 4 grid of letters</b> flash up very briefly, then disappear.
+     There are three kinds of trial:</p>
+  <ul style="text-align:left">
+    <li><b>Whole report</b> — type as many letters as you can from the whole grid.</li>
+    <li><b>Partial report</b> — a <b>tone</b> tells you which row to report: high = top, medium = middle, low = bottom.</li>
+    <li><b>Delayed partial report</b> — the tone comes a second later, after the grid has faded.</li>
+  </ul>
+  <div class="banner"><b>9 trials</b> · about 3 minutes. Type only letters you actually saw. Use the on-screen keyboard
+     on a phone. Note: browsers can't reliably flash for the original 50 ms — here the grid shows for 150 ms.</div>
+  <button class="btn" onclick="start()">Start</button>
+</div>
+
+<div class="card center hidden" id="run">
+  <h2 id="taskline">Get ready…</h2>
+  <div id="grid" class="blank"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+  <div id="cuerow"></div>
+  <div id="answerBox" class="hidden">
+    <input type="text" id="answer" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="type the letters">
+    <button class="btn" id="submit">Submit</button>
+  </div>
+  <p class="muted" id="progress"></p>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const FLASH_MS = 150, DELAY_MS = 1000, GETREADY_MS = 900;
+const TRIALS_PER = 3;                                        // 3 trials × 3 conditions = 9
+const CONDITIONS = [];
+for (let i = 0; i < TRIALS_PER; i++) CONDITIONS.push('whole', 'partial', 'delayed');
+CONDITIONS.sort(() => Math.random() - 0.5);
+
+let i = 0, cond, letters = [], cueRow = -1, counts = { whole: [], partial: [], delayed: [] };
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+let actx = null;
+function initAudio(){                                        // unlock on the first gesture (iOS)
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended' && actx.resume) actx.resume();
+    const b = actx.createBuffer(1, 1, 22050), s = actx.createBufferSource();
+    s.buffer = b; s.connect(actx.destination); s.start(0);
+  } catch (e) {}
+}
+function tone(freq){
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  if (actx.state === 'suspended' && actx.resume) actx.resume();
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.frequency.value = freq; o.type = 'sine'; g.gain.value = 0.25;
+  o.connect(g); g.connect(actx.destination); o.start();
+  setTimeout(() => { o.stop(); }, 350);
+}
+const ROW_TONE = [1000, 700, 400];                           // top, middle, bottom
+
+function show(id){ ['intro','run','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+function start(){ initAudio(); show('run'); i = 0; nextTrial(); }
+
+function nextTrial(){
+  if (i >= CONDITIONS.length) return finish();
+  cond = CONDITIONS[i];
+  // 12 distinct letters
+  letters = [];
+  const pool = ALPHA.slice();
+  while (letters.length < 12) letters.push(pool.splice(rnd(pool.length), 1)[0]);
+  cueRow = cond === 'whole' ? -1 : rnd(3);
+  $('progress').textContent = `Trial ${i+1} / ${CONDITIONS.length}`;
+  $('taskline').textContent = 'Get ready…';
+  $('cuerow').textContent = '';
+  $('answerBox').classList.add('hidden');
+  $('answer').value = '';
+  $('grid').classList.add('blank');
+  const cells = $('grid').children;
+  for (let k = 0; k < 12; k++) cells[k].textContent = letters[k];
+  setTimeout(flashGrid, GETREADY_MS);
+}
+
+function flashGrid(){
+  $('grid').classList.remove('blank');                       // 12 letters visible
+  $('taskline').textContent = 'Read the grid!';
+  setTimeout(() => {
+    $('grid').classList.add('blank');                        // letters off
+    if (cond === 'whole') {
+      $('taskline').textContent = 'Type as many letters as you can remember.';
+      return askInput();
+    }
+    if (cond === 'partial') {
+      tone(ROW_TONE[cueRow]);
+      $('cuerow').textContent = 'Tone = ' + ['top','middle','bottom'][cueRow] + ' row — report ONLY that row.';
+      setTimeout(() => { $('taskline').textContent = 'Report the cued row.'; askInput(); }, 350);
+      return;
+    }
+    // delayed partial
+    $('taskline').textContent = 'Wait for the tone…';
+    setTimeout(() => {
+      tone(ROW_TONE[cueRow]);
+      $('cuerow').textContent = 'Tone = ' + ['top','middle','bottom'][cueRow] + ' row — report ONLY that row.';
+      setTimeout(() => { $('taskline').textContent = 'Report the cued row.'; askInput(); }, 350);
+    }, DELAY_MS);
+  }, FLASH_MS);
+}
+
+function askInput(){
+  $('answerBox').classList.remove('hidden');
+  $('answer').focus();
+}
+
+function score(input){
+  const typed = input.toUpperCase().replace(/[^A-Z]/g, '').split('');
+  const target = cond === 'whole' ? letters
+               : letters.slice(cueRow * 4, cueRow * 4 + 4);
+  const hit = new Set(typed.filter(c => target.includes(c)));
+  return { n: hit.size, of: target.length };
+}
+
+function submit(){
+  const res = score($('answer').value);
+  counts[cond].push(res);
+  i++;
+  setTimeout(nextTrial, 350);
+}
+$('submit').onclick = submit;
+$('answer').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+
+function mean(a){ return a.length ? a.reduce((s,x)=>s+x,0)/a.length : 0; }
+
+function finish(){
+  show('results');
+  const w = counts.whole.map(x => x.n), p = counts.partial.map(x => x.n), d = counts.delayed.map(x => x.n);
+  const mw = mean(w), mp = mean(p), md = mean(d);
+  const avail = mp * 3;                                      // partial report × 3 rows = estimate of items available
+  $('headline').textContent = `Whole ${mw.toFixed(1)}/12 · Partial ${mp.toFixed(1)}/4 · Delayed ${md.toFixed(1)}/4`;
+  $('resTable').innerHTML =
+    `<tr><th>Method</th><th>Mean letters reported</th><th>Estimate for the whole display</th></tr>
+     <tr><td>Whole report</td><td>${mw.toFixed(1)} / 12</td><td>${mw.toFixed(1)} / 12</td></tr>
+     <tr><td>Partial report (immediate tone)</td><td>${mp.toFixed(1)} / 4</td><td>${(mp*3).toFixed(1)} / 12</td></tr>
+     <tr><td>Partial report (1-s delayed tone)</td><td>${md.toFixed(1)} / 4</td><td>${(md*3).toFixed(1)} / 12</td></tr>`;
+  const max = Math.max(mw, avail, md * 3, 1);
+  $('bars').innerHTML = [
+    ['Whole report', mw, ''], ['Partial immediate', avail, 'p'], ['Partial delayed', md * 3, 'd']
+  ].map(([lab, val, cls]) =>
+    `<div class="barrow"><div>${lab}</div><div class="bartrack"><div class="barfill ${cls}" style="width:${Math.round(100*val/max)}%"></div></div><div>${val.toFixed(1)}</div></div>`).join('');
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> Whole report is limited by how fast you can read letters out — the icon fades while you
+     report, so only ~4–5 of the 12 get out. Cueing a <i>single row</i> immediately lets you report most of it, which
+     shows the letters were present all along; multiplying by 3 rows estimates how much was available.
+     Delaying the tone by a second erases the advantage: by then the icon has decayed.<br><br>
+     <b>The study (Sperling, 1960).</b> A 12-letter array was flashed for 50 ms. Whole report: about
+     <b>4.5 / 12</b>. Immediate partial report: about <b>3.3 / 4</b> (82%), implying most of the display was briefly
+     available. With the tone delayed 1 s: about <b>1 / 4</b> — no better than whole report. This is
+     <b>iconic memory</b> (visual sensory memory): high capacity, but it decays in under a second. Note that here the
+     exposure is 150 ms, not 50 ms, because browsers can't flash reliably below that.`;
+}
+</script>
+</body>
+</html>
