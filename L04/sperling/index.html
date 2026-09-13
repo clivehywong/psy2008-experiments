@@ -92,6 +92,7 @@
     <button class="btn" id="submit">Submit</button>
   </div>
   <div id="feedback" class="banner hidden"></div>
+  <button class="btn hidden" id="nextBtn" onclick="advancePractice()">Next →</button>
   <p class="muted" id="progress"></p>
 </div>
 
@@ -186,6 +187,10 @@ function nextPractice(){
   if (pIndex >= practiceQueue.length) return endPractice();
   prepareTrial('partial', practiceQueue[pIndex], true);
 }
+function advancePractice(){                                  // feedback stays until the student taps Next
+  pIndex++;
+  if (pIndex < practiceQueue.length) nextPractice(); else endPractice();
+}
 function endPractice(){ practice = false; show('practiceDone'); }
 
 /* ---------- step 3: the real trials ---------- */
@@ -207,6 +212,7 @@ function prepareTrial(kind, row, isPractice){
   $('taskline').textContent = 'Get ready…';
   $('cuerow').textContent = '';
   $('feedback').classList.add('hidden');
+  $('nextBtn').classList.add('hidden');
   $('answerBox').classList.add('hidden');
   $('answer').value = '';
   $('grid').classList.add('blank');
@@ -257,8 +263,11 @@ function submit(){
     const fb = $('feedback');
     fb.classList.remove('hidden');
     fb.innerHTML = `<b>${ROW_NAME[cueRow]} row</b> was <b>${target}</b>. You reported <b>${typed || '—'}</b> — ${res.n}/${res.of} correct.`;
-    pIndex++;
-    setTimeout(nextPractice, 1400);
+    $('answerBox').classList.add('hidden');
+    $('taskline').textContent = 'Feedback — read it, then continue.';
+    const nb = $('nextBtn');
+    nb.textContent = (pIndex + 1 < practiceQueue.length) ? 'Next practice trial →' : 'Continue to the real trials →';
+    nb.classList.remove('hidden');
     return;
   }
   counts[cond].push(res);
