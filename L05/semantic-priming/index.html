@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semantic Priming — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 720px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  #pair { margin: 26px 0; min-height: 130px; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+  #pair div { font-size: 40px; font-weight: bold; color: #f5d142; font-family: 'Courier New', monospace; letter-spacing: 2px; }
+  #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .key { padding: 18px; font-size: 19px; font-weight: bold; border: 3px solid #334; border-radius: 10px;
+         background: #16213e; cursor: pointer; color: #eee; touch-action: manipulation; }
+  .key:active { transform: scale(.96); }
+  #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 190px 1fr 80px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #2ecc71; }
+  .barfill.un { background: #6c8ebf; }
+  .big { font-size: 24px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Semantic Priming</h1>
+  <p>On each trial, <b>two letter strings</b> appear, one above the other. Decide as fast as you can whether
+     <b>both are real words</b>.</p>
+  <div class="banner"><b>Keys:</b> <b>J</b> = YES (both are words), <b>F</b> = NO (at least one is not a word) —
+     or tap the buttons. Some pairs are related in meaning (bread / wheat); some are not (chair / money).</div>
+  <p><b>40 trials</b> · about 3 minutes.</p>
+  <button class="btn" onclick="startTask()">Start</button>
+</div>
+
+<div class="card center hidden" id="task">
+  <div id="pair"><div id="w1"></div><div id="w2"></div></div>
+  <div id="keys">
+    <div class="key" data-ans="yes">YES — both words (J)</div>
+    <div class="key" data-ans="no">NO — a nonword (F)</div>
+  </div>
+  <div id="status">Trial 1</div>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <p class="muted">Run it again — with ~16 trials per condition a single session is noisy.</p>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+// disjoint word pools: no word appears in both the related and unrelated conditions
+const RELATED = [['bread','wheat'],['doctor','nurse'],['table','chair'],['salt','pepper'],['cat','dog'],
+                 ['music','piano'],['river','water'],['moon','night'],['teacher','school'],['hammer','nail'],
+                 ['coffee','cup'],['finger','hand'],['engine','car'],['shoe','sock'],['winter','snow'],['king','queen']];
+const UNRELATED = [['candle','pillow'],['tunnel','banana'],['wallet','lizard'],['copper','meadow'],['basket','violin'],
+                   ['anchor','ceiling'],['marble','hunter'],['puzzle','helmet'],['valley','orange'],['garden','train'],
+                   ['kettle','carrot'],['ladder','mountain'],['jacket','island'],['mirror','bottle'],['window','carpet'],['thunder','sandal']];
+const NONWORDS = ['bloog','fundt','glurb','bleem','drate','flarn','crosh','plend','shirn','ticle'];
+
+const SEQ = [];
+RELATED.forEach(p => SEQ.push({ pair: p, kind: 'related', both: true }));
+UNRELATED.forEach(p => SEQ.push({ pair: p, kind: 'unrelated', both: true }));
+for (let k = 0; k < 8; k++) SEQ.push({ pair: [NONWORDS[k], NONWORDS[(k + 3) % NONWORDS.length]], kind: 'nonword', both: false });
+SEQ.sort(() => Math.random() - 0.5);
+
+let i = 0, t0 = 0, accepting = false, data = [], rtTimer = null;
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+function show(id){ ['intro','task','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+function startTask(){ show('task'); i = 0; data = []; nextTrial(); }
+
+document.addEventListener('keydown', e => {
+  if (!accepting) return;
+  if (e.key === 'j' || e.key === 'J') answer('yes');
+  if (e.key === 'f' || e.key === 'F') answer('no');
+});
+document.querySelectorAll('#keys .key').forEach(el => {
+  const go = e => { if (e.cancelable) e.preventDefault(); answer(el.dataset.ans); };
+  if (window.PointerEvent) el.addEventListener('pointerdown', go); else el.addEventListener('click', go);
+});
+
+function nextTrial(){
+  if (i >= SEQ.length) return finish();
+  const t = SEQ[i];
+  $('status').textContent = `Trial ${i + 1} / ${SEQ.length}`;
+  $('w1').textContent = ''; $('w2').textContent = '';
+  setTimeout(() => {
+    $('w1').textContent = t.pair[0];
+    $('w2').textContent = t.pair[1];
+    t0 = performance.now();
+    accepting = true;
+    rtTimer = setTimeout(miss, 4000);
+  }, 600);
+}
+
+function answer(ans){
+  if (!accepting) return;
+  accepting = false; clearTimeout(rtTimer);
+  const t = SEQ[i];
+  const correct = (ans === 'yes') === t.both;
+  data.push({ kind: t.kind, both: t.both, correct, rt: Math.round(performance.now() - t0) });
+  i++;
+  setTimeout(nextTrial, 500);
+}
+function miss(){
+  if (!accepting) return;
+  accepting = false; clearTimeout(rtTimer);
+  const t = SEQ[i];
+  data.push({ kind: t.kind, both: t.both, correct: false, rt: 4000, timeout: true });
+  i++;
+  setTimeout(nextTrial, 500);
+}
+
+function finish(){
+  show('results');
+  const mrt = a => a.length ? Math.round(a.reduce((s, x) => s + x.rt, 0) / a.length) : 0;
+  const rel = data.filter(d => d.kind === 'related' && d.correct && d.both);
+  const unrel = data.filter(d => d.kind === 'unrelated' && d.correct && d.both);
+  const nonw = data.filter(d => !d.both);
+  const r = mrt(rel), u = mrt(unrel);
+  const priming = u - r;
+  const acc = Math.round(100 * data.filter(d => d.correct).length / data.length);
+  const accNon = nonw.length ? Math.round(100 * nonw.filter(d => d.correct).length / nonw.length) : 0;
+  $('headline').textContent = `Priming effect ≈ ${priming > 0 ? '+' : ''}${priming} ms (related faster)`;
+  $('resTable').innerHTML =
+    '<tr><th>Pair type</th><th>Mean RT (correct)</th><th>N</th></tr>' +
+    `<tr><td>Related words (bread–wheat)</td><td>${r} ms</td><td>${rel.length}</td></tr>` +
+    `<tr><td>Unrelated words (chair–money)</td><td>${u} ms</td><td>${unrel.length}</td></tr>` +
+    `<tr><td colspan="3">Overall accuracy: ${acc}% · nonword trials correct: ${accNon}%</td></tr>`;
+  const max = Math.max(r, u, 1);
+  $('bars').innerHTML = [['Related', r, ''], ['Unrelated', u, 'un']].map(([lab, val, cls]) =>
+    `<div class="barrow"><div>${lab}</div><div class="bartrack"><div class="barfill ${cls}" style="width:${Math.round(100 * val / max)}%"></div></div><div>${val} ms</div></div>`).join('');
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> ${priming > 0
+      ? `You were about <b>${priming} ms faster</b> deciding that a pair of words were both real when the two words were related in meaning. `
+      : `Your related pairs did not come out faster here — with ~16 trials per condition and one session that happens. The class average usually shows the effect. `}
+     Recognising one word appears to "warm up" related words before you even finish reading them.<br><br>
+     <b>The study (Meyer &amp; Schvaneveldt, 1971).</b> In the <b>lexical decision task</b>, participants judged whether
+     pairs of letter strings were both words. Responses were <b>faster for associated pairs</b> such as
+     <i>bread–wheat</i> than for unassociated pairs such as <i>chair–money</i>. Their explanation —
+     consistent with Collins &amp; Quillian's network model — is <b>spreading activation</b>: retrieving one concept
+     sends activation to nearby concepts in the semantic network, so a related target is already partly primed.
+     This is a core piece of evidence that LTM is organised as a <b>semantic network</b>, and it is why
+     priming is used as a "free" measure of meaning — it happens even when you never intend to relate the words.`;
+}
+</script>
+</body>
+</html>

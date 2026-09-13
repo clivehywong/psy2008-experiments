@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Serial Position Curve — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 760px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  #word { font-size: 48px; font-weight: bold; color: #f5d142; min-height: 64px; letter-spacing: 2px; }
+  #countdown { font-size: 40px; font-weight: bold; color: #7fd1ff; font-family: 'Courier New', monospace; min-height: 50px; }
+  textarea { width: 100%; margin-top: 12px; padding: 14px; font-size: 18px; border-radius: 10px;
+             border: 2px solid #0f3460; background: #0f3460; color: #fff; min-height: 90px; resize: vertical; }
+  textarea:focus { outline: none; border-color: #e94560; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 15px; width: 100%; }
+  td, th { padding: 8px 10px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .curve { display: grid; grid-template-columns: 60px 1fr; gap: 8px; align-items: end; margin: 12px 0; }
+  .curve .lab { font-size: 13px; color: #aab; text-align: right; }
+  .cols { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; align-items: end; height: 90px; }
+  .col { background: #0f1730; border-radius: 3px 3px 0 0; height: 100%; display: flex; align-items: flex-end; }
+  .col i { display: block; width: 100%; border-radius: 3px 3px 0 0; }
+  .col.immediate i { background: #2ecc71; }
+  .col.delayed i { background: #6c8ebf; }
+  .big { font-size: 22px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Serial Position Curve</h1>
+  <p>You will study <b>two lists of 20 words</b>, one word at a time. After each list, write down as many words
+     as you can remember, <b>in any order</b>.</p>
+  <div class="banner">The two lists differ in one way: after the second list you will <b>count backwards by 3s for
+     30 seconds</b> before recalling. Watch what that does to the end of the list.</div>
+  <p><b>2 lists · about 5 minutes.</b> Spelling doesn't have to be perfect.</p>
+  <button class="btn" onclick="start()">Start</button>
+</div>
+
+<div class="card center hidden" id="run">
+  <h2 id="taskline">Get ready…</h2>
+  <div id="word"></div>
+  <div id="countdown"></div>
+  <div id="recallBox" class="hidden">
+    <textarea id="recall" placeholder="type every word you can remember, separated by spaces or commas" spellcheck="false"></textarea>
+    <button class="btn" id="submit">Submit</button>
+  </div>
+  <p class="muted" id="progress"></p>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <h2>Recall by position in the list</h2>
+  <div class="curve">
+    <div class="lab">immediate</div>
+    <div class="cols" id="curveA"></div>
+    <div class="lab">after 30 s</div>
+    <div class="cols" id="curveB"></div>
+  </div>
+  <table id="resTable"></table>
+  <div class="banner" id="debrief"></div>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const LIST_LEN = 20, WORD_MS = 1100, GAP_MS = 250, DELAY_S = 30;
+const POOL_A = ['garden','pencil','coffee','window','shoulder','forest','bottle','market','camera','silver','island','jacket','morning','engine','rabbit','carpet','saddle','mirror','ladder','kettle'];
+const POOL_B = ['orange','helmet','valley','candle','pillow','tunnel','banana','sandal','thunder','wallet','lizard','copper','meadow','basket','violin','anchor','ceiling','marble','hunter','puzzle'];
+
+let phase = 'A';                       // A = immediate, B = delayed
+let list = [], shownOrder = [], dataA = [], dataB = [];
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+function show(id){ ['intro','run','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+function start(){ phase = 'A'; show('run'); beginList(); }
+
+function beginList(){
+  list = (phase === 'A' ? POOL_A : POOL_B).slice();
+  for (let k = list.length - 1; k > 0; k--) { const j = rnd(k + 1); [list[k], list[j]] = [list[j], list[k]]; }
+  $('progress').textContent = `List ${phase === 'A' ? 1 : 2} of 2`;
+  $('recallBox').classList.add('hidden');
+  $('countdown').textContent = '';
+  $('taskline').textContent = 'Study the words — just read them, no need to do anything.';
+  let idx = 0;
+  const step = () => {
+    if (idx >= list.length) { $('word').textContent = ''; return afterList(); }
+    $('word').textContent = list[idx];
+    idx++;
+    setTimeout(() => { $('word').textContent = ''; setTimeout(step, GAP_MS); }, WORD_MS);
+  };
+  step();
+}
+
+function afterList(){
+  if (phase === 'A') return askRecall();
+  $('taskline').textContent = 'Count backwards by 3s from 100 — out loud!';
+  $('countdown').textContent = 'starting from 100 …';
+  let left = DELAY_S;
+  const iv = setInterval(() => {
+    left--;
+    $('countdown').textContent = left > 0 ? `counting… ${left}s` : 'Stop!';
+    if (left <= 0) { clearInterval(iv); setTimeout(askRecall, 250); }
+  }, 1000);
+}
+
+function askRecall(){
+  $('taskline').textContent = 'Write down every word you can remember — any order.';
+  $('countdown').textContent = '';
+  $('recallBox').classList.remove('hidden');
+  $('recall').value = '';
+  $('recall').focus();
+}
+
+function scoreRecall(){
+  const typed = $('recall').value.toLowerCase().replace(/[^a-z\s,]/g, ' ').split(/[\s,]+/).filter(Boolean);
+  return list.map(w => typed.includes(w) ? 1 : 0);
+}
+function submit(){
+  const hits = scoreRecall();
+  if (phase === 'A') { dataA = hits; phase = 'B'; setTimeout(beginList, 600); }
+  else { dataB = hits; setTimeout(finish, 400); }
+}
+$('submit').onclick = submit;
+
+function drawCurve(id, hits, cls){
+  const box = $(id);
+  box.innerHTML = hits.map((h, k) =>
+    `<div class="col ${cls}" title="position ${k+1}: ${h ? 'recalled' : 'missed'}"><i style="height:${h ? 100 : 4}%"></i></div>`).join('');
+}
+
+function finish(){
+  show('results');
+  const pct = a => Math.round(100 * a.reduce((s, x) => s + x, 0) / a.length);
+  const head = a => ({ primacy: pct(a.slice(0, 4)), middle: pct(a.slice(8, 12)), recency: pct(a.slice(-4)) });
+  const A = head(dataA), B = head(dataB);
+  $('headline').textContent = `Whole list: ${pct(dataA)}% vs ${pct(dataB)}%`;
+  drawCurve('curveA', dataA, 'immediate');
+  drawCurve('curveB', dataB, 'delayed');
+  $('resTable').innerHTML =
+    '<tr><th>List</th><th>First 4 (primacy)</th><th>Middle 4</th><th>Last 4 (recency)</th></tr>' +
+    `<tr><td>Immediate recall</td><td>${A.primacy}%</td><td>${A.middle}%</td><td>${A.recency}%</td></tr>` +
+    `<tr><td>After 30 s counting</td><td>${B.primacy}%</td><td>${B.middle}%</td><td>${B.recency}%</td></tr>`;
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> With immediate recall you normally remember the <b>start</b> (primacy) and the
+     <b>end</b> (recency) of the list best, with a dip in the middle. The 30-second counting task fills the
+     delay with activity, and its usual effect is to <b>wipe out the recency advantage</b> — the last words no
+     longer sit in short-term memory by the time you report — while primacy survives.<br><br>
+     <b>The study (Murdock, 1962).</b> Presenting a list and asking for free recall yields this U-shaped
+     <b>serial position curve</b>. Primacy is explained by extra rehearsal of early items, which carries them into
+     LTM; recency is explained by the last items still being in STM at test. A filled delay or a distractor task
+     removes recency — the classic dissociation between the two memory stores.`;
+}
+</script>
+</body>
+</html>

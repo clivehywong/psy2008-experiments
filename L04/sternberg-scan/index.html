@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sternberg Memory Scanning — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 720px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  #set { font-size: 44px; font-weight: bold; letter-spacing: 12px; color: #f5d142; min-height: 58px;
+         font-family: 'Courier New', monospace; }
+  #probe { font-size: 64px; font-weight: bold; color: #7fd1ff; min-height: 76px; font-family: 'Courier New', monospace; }
+  #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .key { padding: 18px; font-size: 19px; font-weight: bold; border: 3px solid #334; border-radius: 10px;
+         background: #16213e; cursor: pointer; color: #eee; touch-action: manipulation; }
+  .key:active { transform: scale(.96); }
+  #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 90px 1fr 80px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #2ecc71; }
+  .barfill.abs { background: #6c8ebf; }
+  .big { font-size: 24px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Sternberg Memory Scanning</h1>
+  <p>Each trial shows a small <b>memory set</b> of digits (1–6 of them), briefly. Then a single <b>probe</b> digit
+     appears — decide as fast as you can whether it was <b>in the set</b> or <b>not in the set</b>.</p>
+  <div class="banner"><b>Keys:</b> <b>J</b> = present (in the set), <b>F</b> = absent (not in the set) — or tap the buttons.
+     Answer fast: we are timing you.</div>
+  <p><b>30 trials</b> · about 3 minutes. Sets are the same size within a trial, and vary from 1 to 6 items.</p>
+  <button class="btn" onclick="startTask()">Start</button>
+</div>
+
+<div class="card center hidden" id="task">
+  <h2 id="phase">Memorise the set</h2>
+  <div id="set"></div>
+  <div id="probe"></div>
+  <div id="keys">
+    <div class="key" data-ans="present">PRESENT (J)</div>
+    <div class="key" data-ans="absent">ABSENT (F)</div>
+  </div>
+  <div id="status">Trial 1</div>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <p class="muted">Run it again — RT slopes need a decent number of trials per set size to be stable.</p>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const SET_SIZES = [1, 2, 3, 4, 6], TRIALS_PER = 6;      // 30 trials (3 present + 3 absent each)
+const SET_ITEM_MS = 800, READY_MS = 500, MAX_RT = 3000, ITI = 600;
+const SEQ = [];
+SET_SIZES.forEach(n => { for (let k = 0; k < TRIALS_PER; k++) SEQ.push(n); });
+SEQ.sort(() => Math.random() - 0.5);
+
+let i = 0, n = 0, memSet = [], probe = 0, isPresent = false, tProbe = 0, accepting = false, data = [], rtTimer = null;
+const $ = id => document.getElementById(id);
+const rnd = m => Math.floor(Math.random() * m);
+function show(id){ ['intro','task','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+function startTask(){ show('task'); i = 0; data = []; next(); }
+
+document.addEventListener('keydown', e => {
+  if (!accepting) return;
+  if (e.key === 'j' || e.key === 'J') answer('present');
+  if (e.key === 'f' || e.key === 'F') answer('absent');
+});
+document.querySelectorAll('#keys .key').forEach(el => {
+  const go = e => { if (e.cancelable) e.preventDefault(); answer(el.dataset.ans); };
+  if (window.PointerEvent) el.addEventListener('pointerdown', go); else el.addEventListener('click', go);
+});
+
+function next(){
+  if (i >= SEQ.length) return finish();
+  n = SEQ[i];
+  const pool = [0,1,2,3,4,5,6,7,8,9];
+  memSet = [];
+  while (memSet.length < n) memSet.push(pool.splice(rnd(pool.length), 1)[0]);
+  isPresent = Math.random() < 0.5;
+  if (isPresent) probe = memSet[rnd(n)];
+  else { const others = [0,1,2,3,4,5,6,7,8,9].filter(d => !memSet.includes(d)); probe = others[rnd(others.length)]; }
+  $('status').textContent = `Trial ${i + 1} / ${SEQ.length}`;
+  $('phase').textContent = `Memorise these ${n} digit${n > 1 ? 's' : ''}`;
+  $('set').textContent = memSet.join(' ');
+  $('probe').textContent = '';
+  accepting = false;
+  setTimeout(() => showProbe(), n * SET_ITEM_MS + READY_MS);
+}
+
+function showProbe(){
+  $('phase').textContent = 'In the set — or not?';
+  $('set').textContent = '';
+  $('probe').textContent = probe;
+  tProbe = performance.now();
+  accepting = true;
+  rtTimer = setTimeout(miss, MAX_RT);
+}
+
+function answer(ans){
+  if (!accepting) return;
+  accepting = false; clearTimeout(rtTimer);
+  const correct = (ans === 'present') === isPresent;
+  data.push({ n, isPresent, correct, rt: Math.round(performance.now() - tProbe) });
+  i++;
+  setTimeout(next, ITI);
+}
+function miss(){
+  if (!accepting) return;
+  accepting = false; clearTimeout(rtTimer);
+  data.push({ n, isPresent, correct: false, rt: MAX_RT, timeout: true });
+  i++;
+  setTimeout(next, ITI);
+}
+
+function slope(pts){                                     // least-squares slope of RT on set size
+  const N = pts.length, sx = pts.reduce((s,p)=>s+p[0],0), sy = pts.reduce((s,p)=>s+p[1],0);
+  const sxx = pts.reduce((s,p)=>s+p[0]*p[0],0), sxy = pts.reduce((s,p)=>s+p[0]*p[1],0);
+  return (N * sxy - sx * sy) / Math.max(1e-9, N * sxx - sx * sx);
+}
+
+function finish(){
+  show('results');
+  const rows = SET_SIZES.map(S => {
+    const d = data.filter(x => x.n === S);
+    const ok = d.filter(x => x.correct);
+    const rt = ok.length ? Math.round(ok.reduce((s,x)=>s+x.rt,0)/ok.length) : 0;
+    const yes = ok.filter(x => x.isPresent), no = ok.filter(x => !x.isPresent);
+    const mrt = a => a.length ? Math.round(a.reduce((s,x)=>s+x.rt,0)/a.length) : 0;
+    return { S, rt, acc: d.length ? Math.round(100*ok.length/d.length) : 0, yes: mrt(yes), no: mrt(no) };
+  });
+  const pts = rows.filter(r => r.rt > 0).map(r => [r.S, r.rt]);
+  const sl = pts.length > 1 ? Math.round(slope(pts)) : 0;
+  $('headline').textContent = `RT slope ≈ ${sl} ms per item`;
+  $('resTable').innerHTML = '<tr><th>Set size</th><th>Mean RT (correct)</th><th>Accuracy</th><th>RT: present</th><th>RT: absent</th></tr>' +
+    rows.map(r => `<tr><td>${r.S}</td><td>${r.rt} ms</td><td>${r.acc}%</td><td>${r.yes} ms</td><td>${r.no} ms</td></tr>`).join('');
+  const max = Math.max(...rows.map(r => r.rt), 1);
+  $('bars').innerHTML = rows.map(r =>
+    `<div class="barrow"><div>${r.S} items</div><div class="bartrack"><div class="barfill" style="width:${Math.round(100*r.rt/max)}%"></div></div><div>${r.rt} ms</div></div>`).join('');
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> RT rises with the size of the memory set — roughly a fixed cost <i>per item</i>
+     (your slope is above). If you, like most people, show the same slope for "present" and "absent" responses,
+     that is evidence for a <b>serial, exhaustive scan</b>: you run through the whole set, comparing each item,
+     even after a match.<br><br>
+     <b>The paradigm (S. Sternberg, 1966/1969).</b> Memorise a small set of items, then judge whether a probe
+     was in it. RT increases linearly with set size, typically by about <b>35–40 ms per item</b>, and the slope is
+     similar for present and absent trials. That is why the task is the standard demonstration of
+     <b>serial search in short-term memory</b>, and why manipulating set size is the standard tool for
+     measuring how many items are held and how they are searched. (Sternberg's scanning task is the Ch 5
+     "Sternberg Search" CogLab exercise.)`;
+}
+</script>
+</body>
+</html>

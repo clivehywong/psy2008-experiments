@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brown-Peterson Task — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 680px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  .big { font-size: 54px; font-weight: bold; letter-spacing: 6px; color: #f5d142; margin: 12px 0; min-height: 66px;
+         font-family: 'Courier New', monospace; }
+  #count { font-size: 44px; font-weight: bold; color: #7fd1ff; font-family: 'Courier New', monospace; min-height: 54px; }
+  #clock { font-size: 16px; color: #aab; min-height: 22px; }
+  input[type=text] { width: 100%; margin-top: 12px; padding: 14px; font-size: 22px; letter-spacing: 6px;
+                     text-transform: uppercase; border-radius: 10px; border: 2px solid #0f3460; background: #0f3460;
+                     color: #fff; text-align: center; font-family: 'Courier New', monospace; }
+  input[type=text]:focus { outline: none; border-color: #e94560; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 90px 1fr 70px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #e94560; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Brown-Peterson Task</h1>
+  <p>On each trial you will see <b>three letters</b> and a <b>three-digit number</b>. Then you must
+     <b>count backwards aloud by threes</b> from the number until you are asked to recall the letters.</p>
+  <div class="banner"><b>Counting aloud is essential.</b> It is what stops you rehearsing the letters — say the
+     numbers out loud (or clearly under your breath). Then type the three letters.</div>
+  <p><b>9 trials</b> (delays of 3, 9 and 18 seconds) · about 3 minutes. Letters may be recalled in any order.</p>
+  <button class="btn" onclick="start()">Start</button>
+</div>
+
+<div class="card center hidden" id="run">
+  <h2 id="taskline">Get ready…</h2>
+  <div class="big" id="letters"></div>
+  <div id="count"></div>
+  <div id="clock"></div>
+  <div id="answerBox" class="hidden">
+    <input type="text" id="answer" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="type the 3 letters">
+    <button class="btn" id="submit">Submit</button>
+  </div>
+  <p class="muted" id="progress"></p>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline" style="font-size:22px;letter-spacing:0"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const DELAYS = [3, 9, 18];
+const TRIALS_PER = 3;
+const SHOW_MS = 2500;
+const CONS = 'BCDFGHJKLMNPQRSTVWXZ'.split('');
+const SEQ = [];
+for (let k = 0; k < TRIALS_PER; k++) DELAYS.forEach(d => SEQ.push(d));
+SEQ.sort(() => Math.random() - 0.5);
+
+let i = 0, delay = 0, trigram = [], number = '000', data = [];
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+function show(id){ ['intro','run','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+function start(){ i = 0; data = []; show('run'); nextTrial(); }
+
+function nextTrial(){
+  if (i >= SEQ.length) return finish();
+  delay = SEQ[i];
+  trigram = [];
+  const pool = CONS.slice();
+  while (trigram.length < 3) trigram.push(pool.splice(rnd(pool.length), 1)[0]);
+  number = String(100 + rnd(900));
+  $('progress').textContent = `Trial ${i + 1} / ${SEQ.length}`;
+  $('taskline').textContent = 'Memorise the letters — then count backwards by 3!';
+  $('letters').textContent = trigram.join(' ') + '   ' + number;
+  $('count').textContent = '';
+  $('clock').textContent = '';
+  $('answerBox').classList.add('hidden');
+  $('answer').value = '';
+  setTimeout(countPhase, SHOW_MS);
+}
+
+function countPhase(){
+  $('taskline').textContent = 'Count backwards by 3s — out loud!';
+  $('letters').textContent = '';
+  $('count').textContent = 'from ' + number + ' …';
+  let left = delay;
+  $('clock').textContent = `Counting… ${left}s`;
+  const iv = setInterval(() => {
+    left--;
+    $('clock').textContent = left > 0 ? `Counting… ${left}s` : 'Stop counting!';
+    if (left <= 0) { clearInterval(iv); setTimeout(askRecall, 250); }
+  }, 1000);
+}
+
+function askRecall(){
+  $('taskline').textContent = 'What were the three letters?';
+  $('count').textContent = '';
+  $('clock').textContent = '';
+  $('answerBox').classList.remove('hidden');
+  $('answer').focus();
+}
+
+function submit(){
+  const typed = $('answer').value.toUpperCase().replace(/[^A-Z]/g, '').split('');
+  const hit = new Set(typed.filter(c => trigram.includes(c)));
+  data.push({ delay, n: hit.size });
+  i++;
+  setTimeout(() => { $('answerBox').classList.add('hidden'); nextTrial(); }, 300);
+}
+$('submit').onclick = submit;
+$('answer').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+
+function finish(){
+  show('results');
+  const rows = DELAYS.map(d => {
+    const ds = data.filter(x => x.delay === d);
+    const pct = ds.length ? Math.round(100 * ds.reduce((s, x) => s + x.n, 0) / (ds.length * 3)) : 0;
+    return { d, pct };
+  });
+  $('headline').textContent = rows.map(r => `${r.d}s: ${r.pct}% recalled`).join('  ·  ');
+  $('resTable').innerHTML = '<tr><th>Delay (counting)</th><th>Letters correctly recalled</th></tr>' +
+    rows.map(r => `<tr><td>${r.d} s</td><td>${r.pct}%</td></tr>`).join('');
+  $('bars').innerHTML = rows.map(r =>
+    `<div class="barrow"><div>${r.d} s</div><div class="bartrack"><div class="barfill" style="width:${r.pct}%"></div></div><div>${r.pct}%</div></div>`).join('');
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> The letters are gone very quickly when you cannot rehearse them: recall is
+     reasonably good at the shortest delay and poor by 18 s. Counting backwards blocks the rehearsal that would
+     normally keep them alive.<br><br>
+     <b>The study (Peterson &amp; Peterson, 1959; Brown, 1958).</b> Three letters (e.g. FZL) followed by a number;
+     participants counted backwards by threes for 3–18 s and then recalled the letters. Correct recall fell from
+     about <b>80% at 3 s</b> to about <b>12% at 18 s</b>. This is the core evidence that short-term memory
+     <b>decays in roughly 15–20 s</b> when rehearsal is prevented — much shorter than the "few minutes" most people
+     assume. It is also why later models (Baddeley's working memory) emphasise active rehearsal: without it,
+     verbal material slips away fast.`;
+}
+</script>
+</body>
+</html>

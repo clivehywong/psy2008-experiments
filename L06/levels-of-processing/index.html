@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Levels of Processing — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 700px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  #word { font-size: 52px; font-weight: bold; color: #f5d142; min-height: 70px; font-family: 'Courier New', monospace; }
+  #question { font-size: 20px; min-height: 30px; color: #dde; margin-top: 6px; }
+  #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .key { padding: 18px; font-size: 19px; font-weight: bold; border: 3px solid #334; border-radius: 10px;
+         background: #16213e; cursor: pointer; color: #eee; touch-action: manipulation; }
+  .key:active { transform: scale(.96); }
+  textarea { width: 100%; margin-top: 12px; padding: 14px; font-size: 18px; border-radius: 10px;
+             border: 2px solid #0f3460; background: #0f3460; color: #fff; min-height: 100px; resize: vertical; }
+  textarea:focus { outline: none; border-color: #e94560; }
+  #status { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 150px 1fr 80px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #e94560; }
+  .barfill.r { background: #f1c40f; }
+  .barfill.s { background: #2ecc71; }
+  .big { font-size: 22px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Levels of Processing</h1>
+  <p>You will see <b>30 words</b>, each with a quick question about it. <b>Answer the question</b> as it appears —
+     the questions differ, but <b>do not try to memorise the words</b>.</p>
+  <div class="banner">Answer with <b>Y</b> (yes) or <b>N</b> (no), or tap the buttons. Some questions are about how
+     the word <i>looks</i>, some about how it <i>sounds</i>, some about what it <i>means</i>.</div>
+  <p><b>30 words · about 3 minutes</b>, then a surprise memory test for the words.</p>
+  <button class="btn" onclick="startTask()">Start</button>
+</div>
+
+<div class="card center hidden" id="task">
+  <div id="word"></div>
+  <div id="question"></div>
+  <div id="keys">
+    <div class="key" data-ans="yes">YES (Y)</div>
+    <div class="key" data-ans="no">NO (N)</div>
+  </div>
+  <div id="status">Trial 1 / 30</div>
+</div>
+
+<div class="card center hidden" id="recallCard">
+  <h1>Surprise memory test</h1>
+  <p>Now write down every word you can remember from the 30, in any order.</p>
+  <textarea id="recall" placeholder="type the words you remember, separated by spaces" spellcheck="false"></textarea>
+  <button class="btn" onclick="finish()">Submit</button>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+/* items: [word, condition, question, answer]
+   physical items get their case randomised at run time; answer is computed from the display */
+const RHYME = [['night','LIGHT',true],['cone','STONE',true],['book','LOOK',true],['star','CAR',true],['gold','TOLD',true],
+               ['cloud','HORSE',false],['money','TIGER',false],['table','PLANET',false],['horse','NURSE',false],['water','PAPER',false]];
+const SEMANTIC = [['dog',true],['spoon',false],['tiger',true],['window',false],['rabbit',true],
+                  ['pencil',false],['eagle',true],['bottle',false],['dolphin',true],['ladder',false]];
+const PHYSICAL = ['candle','pillow','tunnel','banana','wallet','lizard','copper','meadow','basket','violin'];
+
+let items = [], i = 0, curCase = 'lower', t0 = 0, accepting = false, answered = 0;
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+function show(id){ ['intro','task','recallCard','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+
+function buildItems(){
+  const out = [];
+  PHYSICAL.forEach(w => out.push({ word: w, cond: 'physical' }));
+  RHYME.forEach(([w, cue, ans]) => out.push({ word: w, cond: 'rhyme', cue, ans }));
+  SEMANTIC.forEach(([w, ans]) => out.push({ word: w, cond: 'semantic', ans }));
+  for (let k = out.length - 1; k > 0; k--) { const j = rnd(k + 1); [out[k], out[j]] = [out[j], out[k]]; }
+  return out;
+}
+function startTask(){ items = buildItems(); i = 0; answered = 0; show('task'); nextTrial(); }
+
+document.addEventListener('keydown', e => {
+  if (!accepting) return;
+  if (e.key === 'y' || e.key === 'Y') answer('yes');
+  if (e.key === 'n' || e.key === 'N') answer('no');
+});
+document.querySelectorAll('#keys .key').forEach(el => {
+  const go = e => { if (e.cancelable) e.preventDefault(); answer(el.dataset.ans); };
+  if (window.PointerEvent) el.addEventListener('pointerdown', go); else el.addEventListener('click', go);
+});
+
+function nextTrial(){
+  if (i >= items.length) { show('recallCard'); $('recall').value = ''; $('recall').focus(); return; }
+  const it = items[i];
+  $('status').textContent = `Trial ${i + 1} / ${items.length}`;
+  let shown = it.word;
+  if (it.cond === 'physical') {
+    curCase = Math.random() < 0.5 ? 'upper' : 'lower';
+    shown = curCase === 'upper' ? it.word.toUpperCase() : it.word.toLowerCase();
+    it.answer = (curCase === 'upper');
+    $('question').textContent = 'Was the word printed in CAPITAL letters?';
+  } else if (it.cond === 'rhyme') {
+    shown = it.word;
+    it.answer = it.ans;
+    $('question').textContent = `Does it rhyme with ${it.cue}?`;
+  } else {
+    shown = it.word;
+    it.answer = it.ans;
+    $('question').textContent = 'Is it an animal?';
+  }
+  $('word').textContent = shown;
+  accepting = true;
+}
+function answer(ans){
+  if (!accepting) return;
+  accepting = false;
+  const it = items[i];
+  it.userAns = (ans === 'yes');
+  it.userCorrect = (it.userAns === it.answer);
+  i++;
+  setTimeout(nextTrial, 350);
+}
+
+function finish(){
+  const typed = $('recall').value.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const byCond = { physical: [], rhyme: [], semantic: [] };
+  items.forEach(it => byCond[it.cond].push(typed.includes(it.word) ? 1 : 0));
+  const pct = a => Math.round(100 * a.reduce((s, x) => s + x, 0) / a.length);
+  const P = pct(byCond.physical), R = pct(byCond.rhyme), S = pct(byCond.semantic);
+  const orientAcc = Math.round(100 * items.filter(it => it.userCorrect).length / items.length);
+  show('results');
+  $('headline').textContent = `Recalled: physical ${P}% · rhyme ${R}% · meaning ${S}%`;
+  $('resTable').innerHTML =
+    '<tr><th>Question type (processing)</th><th>Words recalled</th></tr>' +
+    `<tr><td>Appearance — "printed in CAPITALS?" (shallow)</td><td>${P}%</td></tr>` +
+    `<tr><td>Sound — "does it rhyme?" (medium)</td><td>${R}%</td></tr>` +
+    `<tr><td>Meaning — "is it an animal?" (deep)</td><td>${S}%</td></tr>` +
+    `<tr><td colspan="2">You answered the orienting questions correctly on ${orientAcc}% of trials (not the point — but shows you were doing the task).</td></tr>`;
+  $('bars').innerHTML = [['Meaning', S, 's'], ['Rhyme', R, 'r'], ['Appearance', P, '']].map(([lab, val, cls]) =>
+    `<div class="barrow"><div>${lab}</div><div class="bartrack"><div class="barfill ${cls}" style="width:${val}%"></div></div><div>${val}%</div></div>`).join('');
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> You were never asked to learn anything — yet recall is usually best for words you judged
+     by <b>meaning</b>, then by sound, and worst for words you judged by their <b>appearance</b>. Where your attention
+     went during encoding, not how long you studied, determined what stuck.<br><br>
+     <b>The study (Craik &amp; Lockhart, 1972; Craik &amp; Tulving, 1975).</b> Participants answered questions about
+     a word's <b>physical features</b> (e.g. is it in capitals?), its <b>rhyme</b>, or its <b>meaning</b>
+     (does it fit a sentence?), then took an unexpected free-recall test. Recall increased steadily from shallow to
+     deep processing. The claim is that memory strength depends on <b>depth of processing</b>: semantic,
+     elaborative encoding creates a richer, more retrievable trace. It is the reason "just re-reading" is weak
+     study practice, while asking what things <i>mean</i> works.`;
+}
+</script>
+</body>
+</html>

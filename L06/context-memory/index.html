@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Context-Dependent Memory — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+         transition: background .5s; }
+  body.underwater { background: #06283d; }
+  body.beach { background: #6b4f2a; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 700px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); transition: background .5s, border-color .5s; }
+  .card.underwater { background: #0a3d62; border: 2px solid #2e86de; }
+  .card.beach { background: #8a6a3a; border: 2px solid #e6b95c; }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  .card.underwater h1 { color: #7fd1ff; }
+  .card.beach h1 { color: #ffe08a; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: rgba(15,52,96,.75); border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  #word { font-size: 50px; font-weight: bold; color: #fff; min-height: 66px; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  .env { display: inline-block; padding: 4px 14px; border-radius: 999px; font-weight: bold; font-size: 15px; }
+  .env.underwater { background: #2e86de; color: #fff; }
+  .env.beach { background: #e6b95c; color: #4a3413; }
+  textarea { width: 100%; margin-top: 12px; padding: 14px; font-size: 18px; border-radius: 10px;
+             border: 2px solid rgba(255,255,255,.25); background: rgba(0,0,0,.25); color: #fff; min-height: 100px; resize: vertical; }
+  textarea:focus { outline: none; border-color: #e94560; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 200px 1fr 70px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #2ecc71; }
+  .barfill.diff { background: #6c8ebf; }
+  .big { font-size: 22px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Context-Dependent Memory</h1>
+  <p>You will study <b>four short lists</b> of words. Each list is studied in one <b>environment</b> —
+     <b>Underwater</b> or <b>Beach</b> — and then recalled in an environment, which may or may not match.</p>
+  <div class="banner">This is the logic of Godden &amp; Baddeley's (1975) <i>diving</i> experiment: study words on land
+     or underwater, then test on land or underwater. Just read each word as it appears; you'll be asked to recall
+     straight afterwards.</div>
+  <p><b>4 lists · about 6 minutes.</b> Watch the background — that is the context.</p>
+  <button class="btn" onclick="start()">Start</button>
+</div>
+
+<div class="card center hidden" id="run">
+  <h2 id="taskline"></h2>
+  <div id="word"></div>
+  <div id="envLine"></div>
+  <div id="recallBox" class="hidden">
+    <textarea id="recall" placeholder="type every word you can remember, separated by spaces" spellcheck="false"></textarea>
+    <button class="btn" id="submit">Submit</button>
+  </div>
+  <p class="muted" id="progress"></p>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <p class="muted">Run it again — with 4 lists and 10 words each the effect is noisy; the class average is what matters.</p>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const LIST_LEN = 10, WORD_MS = 1200, GAP_MS = 250;
+const LISTS = [
+  ['garden','pencil','coffee','window','shoulder','forest','bottle','market','camera','island'],
+  ['orange','helmet','valley','candle','pillow','tunnel','banana','sandal','thunder','wallet'],
+  ['lizard','copper','meadow','basket','violin','anchor','ceiling','marble','hunter','puzzle'],
+  ['mirror','ladder','kettle','carrot','mountain','jacket','spoon','blanket','river','saddle']
+];
+// study/test environment per list (balanced 2 same, 2 different)
+const PLAN = [
+  { study: 'underwater', test: 'underwater' },
+  { study: 'underwater', test: 'beach' },
+  { study: 'beach',      test: 'beach' },
+  { study: 'beach',      test: 'underwater' }
+];
+const NAMES = { underwater: 'UNDERWATER', beach: 'BEACH' };
+
+let b = 0, list = [], data = [];
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+function show(id){ ['intro','run','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+function setEnv(e){
+  document.body.className = e;
+  $('run').className = 'card center ' + e;
+}
+function start(){ b = 0; data = []; show('run'); beginList(); }
+
+function beginList(){
+  const plan = PLAN[b];
+  setEnv(plan.study);
+  list = LISTS[b].slice();
+  for (let k = list.length - 1; k > 0; k--) { const j = rnd(k + 1); [list[k], list[j]] = [list[j], list[k]]; }
+  $('progress').textContent = `List ${b + 1} of 4`;
+  $('taskline').textContent = 'Study these words';
+  $('envLine').innerHTML = `studying in <span class="env ${plan.study}">${NAMES[plan.study]}</span>`;
+  $('recallBox').classList.add('hidden');
+  let idx = 0;
+  const step = () => {
+    if (idx >= list.length) { $('word').textContent = ''; return afterList(); }
+    $('word').textContent = list[idx];
+    idx++;
+    setTimeout(() => { $('word').textContent = ''; setTimeout(step, GAP_MS); }, WORD_MS);
+  };
+  step();
+}
+
+function afterList(){
+  const plan = PLAN[b];
+  setEnv(plan.test);
+  $('taskline').textContent = 'Recall the words';
+  $('envLine').innerHTML = `recalling in <span class="env ${plan.test}">${NAMES[plan.test]}</span>` +
+    (plan.study === plan.test ? ' — same context as study' : ' — DIFFERENT context from study');
+  $('recallBox').classList.remove('hidden');
+  $('recall').value = '';
+  $('recall').focus();
+}
+
+function submit(){
+  const plan = PLAN[b];
+  const typed = $('recall').value.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const hits = list.filter(w => typed.includes(w)).length;
+  data.push({ same: plan.study === plan.test, hits, of: list.length });
+  b++;
+  if (b < PLAN.length) setTimeout(beginList, 500);
+  else setTimeout(finish, 500);
+}
+$('submit').onclick = submit;
+
+function finish(){
+  setEnv('underwater'); document.body.className = '';
+  show('results');
+  const same = data.filter(d => d.same), diff = data.filter(d => !d.same);
+  const pct = a => a.length ? Math.round(100 * a.reduce((s, x) => s + x.hits, 0) / a.reduce((s, x) => s + x.of, 0)) : 0;
+  const S = pct(same), D = pct(diff);
+  $('headline').textContent = `Same context ${S}%  ·  Different context ${D}%`;
+  $('resTable').innerHTML =
+    '<tr><th>Recall context</th><th>Words recalled</th><th>Lists</th></tr>' +
+    `<tr><td>Same as study</td><td>${S}%</td><td>${same.length}</td></tr>` +
+    `<tr><td>Different from study</td><td>${D}%</td><td>${diff.length}</td></tr>`;
+  const max = Math.max(S, D, 1);
+  $('bars').innerHTML = [['Same context', S, ''], ['Different context', D, 'diff']].map(([lab, val, cls]) =>
+    `<div class="barrow"><div>${lab}</div><div class="bartrack"><div class="barfill ${cls}" style="width:${Math.round(100 * val / max)}%"></div></div><div>${val}%</div></div>`).join('');
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> ${S > D
+      ? `You recalled more words when the recall context matched the study context — the environment became part of the memory. `
+      : `Here the different-context lists did not come out worse — with only two lists per condition, one session is very noisy. The class average usually shows the same-context advantage. `}
+     Notice that nothing about the words changed; only the <b>retrieval conditions</b> did.<br><br>
+     <b>The study (Godden &amp; Baddeley, 1975).</b> Deep-sea divers learned word lists either <b>underwater</b> or on
+     <b>land</b>, then recalled them in one of the two places. Recall was best when the <b>test context matched the
+     study context</b>. This is <b>encoding specificity</b>: we encode information together with the context it was
+     learned in, so matching conditions at retrieval helps. Grant et al. (1998) found the same with studying in the
+     same vs a different room (and quiet vs noisy), and there are analogous <b>state-dependent</b> effects for mood.
+     Practical upshot: "reinstating the context" — going back to where you learned it, or imagining it — can work as
+     a retrieval cue; but for exams, <b>varied</b> study contexts stop you depending on any one of them.`;
+}
+</script>
+</body>
+</html>
