@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schneider &amp; Shiffrin — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 720px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 12px; color: #e94560; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+
+  #memstrip { font-size: 40px; font-weight: bold; letter-spacing: 12px; color: #f5d142; min-height: 56px; }
+  #frame { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px;
+           width: 300px; height: 300px; margin: 18px auto; background: #bfe3d9; border-radius: 10px; padding: 14px; }
+  #frame div { display: flex; align-items: center; justify-content: center; font-size: 44px; font-weight: bold;
+               color: #123; font-family: 'Courier New', monospace; }
+  #frame.empty div { color: transparent; }
+  #spot { width: 100%; margin-top: 8px; padding: 20px; font-size: 22px; font-weight: bold; color: #fff;
+          background: #e94560; border: none; border-radius: 12px; cursor: pointer; touch-action: manipulation; }
+  #spot:active { transform: scale(.98); }
+  #statusline { font-size: 15px; color: #aab; margin-top: 10px; min-height: 22px; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
+  td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 120px 1fr 90px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #2ecc71; }
+  .barfill.fa { background: #e94560; }
+  .big { font-size: 28px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Schneider &amp; Shiffrin (1977)</h1>
+  <p>You will <b>memorise 1–4 characters</b>. Then a series of frames flashes up on the screen.
+     Each frame holds four characters. <b>Press SPOT as soon as you see a character from your memory set.</b></p>
+  <div class="banner">
+    <b>How to play:</b> press <b>SPACE</b> (or tap the big button) the moment a memory-set character appears.
+    Frames are fast on purpose — speed is the whole point. You will play <b>two blocks</b>:
+    one where the target characters are always the same kind, and one where they change from trial to trial.
+  </div>
+  <p><b>12 trials</b> · about 2 minutes.</p>
+  <button class="btn" onclick="startBlock()">Start Block 1</button>
+</div>
+
+<div class="card center hidden" id="blockIntro">
+  <h1 id="blockTitle"></h1>
+  <p id="blockDesc"></p>
+  <button class="btn" onclick="nextTrial()">Begin</button>
+</div>
+
+<div class="card center hidden" id="run">
+  <div id="memstrip"></div>
+  <div id="frame" class="empty"><div></div><div></div><div></div><div></div></div>
+  <button id="spot">SPOT IT!  (SPACE)</button>
+  <div id="statusline"></div>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <p class="muted">Run it again — with only 6 trials per block, single sessions are noisy. The real
+     Schneider &amp; Shiffrin result comes from hundreds of trials.</p>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const FRAMES = 10, FRAME_MS = 300, MEM_MS = 2000, READY_MS = 700, TRIALS = 6;
+const TARGET_POOL = ['1','2','3','4','5','6','7','8','9'];        // consistent-mapping targets
+const LETTER_POOL = ['K','R','M','G','C','T','V','L','F','J','H','Q']; // distractors (and varied-mapping targets)
+
+const BLOCKS = [
+  { name: 'Block 1 — Consistent mapping', kind: 'CM',
+    desc: 'Targets are always digits (1–9); the other characters are always letters. The same characters keep the same role on every trial.' },
+  { name: 'Block 2 — Varied mapping', kind: 'VM',
+    desc: 'Targets are letters, and which letters are targets changes from trial to trial — a letter that is a distractor now may be a target later. Everything is drawn from one pool.' }
+];
+
+let block = 0, trial = 0, memSet = [], targetPresent = false, targetFrame = -1;
+let frameIndex = 0, frameTimer = null, responded = false, responseFrame = -1, rt = 0, frameStart = 0;
+let results = [[], []];   // [[trial records block1], [block2]]
+const $ = id => document.getElementById(id);
+const rnd = n => Math.floor(Math.random() * n);
+const pick = (arr, n) => { const a = arr.slice(); const out = []; while (out.length < n && a.length) out.push(a.splice(rnd(a.length), 1)[0]); return out; };
+
+function show(id){ ['intro','blockIntro','run','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+
+document.addEventListener('keydown', e => { if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); spotIt(); } });
+$('spot').addEventListener('pointerdown', e => { if (e.cancelable) e.preventDefault(); spotIt(); });
+
+function startBlock(){
+  show('blockIntro');
+  $('blockTitle').textContent = BLOCKS[block].name;
+  $('blockDesc').textContent = BLOCKS[block].desc;
+  trial = 0;
+}
+
+function nextTrial(){
+  if (trial >= TRIALS) return endBlock();
+  show('run');
+  responded = false; responseFrame = -1; rt = 0; frameIndex = 0;
+  const cfg = BLOCKS[block];
+  const size = 1 + rnd(4);                                   // memory set: 1–4 items
+  if (cfg.kind === 'CM') {
+    memSet = pick(TARGET_POOL, size);
+  } else {
+    memSet = pick(LETTER_POOL, size);                        // varied mapping: targets from the shared pool
+  }
+  targetPresent = Math.random() < 0.5;
+  targetFrame = targetPresent ? rnd(FRAMES) : -1;
+  $('memstrip').textContent = memSet.join(' ');
+  $('frame').classList.add('empty');
+  $('statusline').textContent = `Trial ${trial+1} / ${TRIALS} — memorise these ${size} character${size>1?'s':''}…`;
+  setTimeout(runFrames, MEM_MS);
+}
+
+function buildFrame(idx){
+  const cfg = BLOCKS[block];
+  let chars;
+  if (cfg.kind === 'CM') {
+    chars = pick(LETTER_POOL, 4);                            // distractors
+    if (idx === targetFrame) chars[rnd(4)] = pick(memSet, 1)[0];  // one target from the memory set
+  } else {
+    const others = LETTER_POOL.filter(c => !memSet.includes(c));
+    chars = pick(others, 4);
+    if (idx === targetFrame) chars[rnd(4)] = pick(memSet, 1)[0];
+  }
+  return chars;
+}
+
+function runFrames(){
+  $('memstrip').textContent = '';                            // memory set is hidden — search from memory
+  $('statusline').textContent = `Trial ${trial+1} / ${TRIALS} — go!`;
+  $('frame').classList.remove('empty');
+  const cells = $('frame').children;
+  const step = () => {
+    if (frameIndex >= FRAMES) return endSeries();
+    const chars = buildFrame(frameIndex);
+    for (let k = 0; k < 4; k++) cells[k].textContent = chars[k];
+    frameStart = performance.now();
+    frameIndex++;
+    frameTimer = setTimeout(() => {
+      if (frameIndex < FRAMES) { for (let k = 0; k < 4; k++) cells[k].textContent = ''; }
+      step();
+    }, FRAME_MS);
+  };
+  step();
+}
+
+function spotIt(){
+  if ($('run').classList.contains('hidden') || responded) return;
+  if (frameIndex === 0) return;                               // ignore presses during the memory-set phase
+  responded = true; responseFrame = frameIndex - 1; rt = performance.now() - frameStart;
+}
+
+function endSeries(){
+  clearTimeout(frameTimer);
+  const correct = targetPresent ? responded : !responded;
+  results[block].push({ targetPresent, responded, responseFrame, correct, rt });
+  trial++;
+  $('statusline').textContent = 'Trial complete.';
+  setTimeout(nextTrial, 500);
+}
+
+function endBlock(){
+  block++;
+  if (block < BLOCKS.length) { startBlock(); return; }
+  finish();
+}
+
+function finish(){
+  show('results');
+  const rows = BLOCKS.map((b, i) => {
+    const d = results[i];
+    const t = d.filter(x => x.targetPresent);
+    const nt = d.filter(x => !x.targetPresent);
+    const hits = t.filter(x => x.responded).length;
+    const fa = nt.filter(x => x.responded).length;
+    const hitRt = t.filter(x => x.responded && x.rt > 0).map(x => Math.round(x.rt));
+    const mrt = hitRt.length ? Math.round(hitRt.reduce((a, b) => a + b, 0) / hitRt.length) : 0;
+    return { name: b.name, hits, targets: t.length, fa, nonTargets: nt.length, mrt };
+  });
+  $('resTable').innerHTML = '<tr><th>Block</th><th>Hits (of targets)</th><th>False alarms (of non-targets)</th><th>Mean detection RT</th></tr>' +
+    rows.map(r => `<tr><td>${r.name}</td><td>${r.hits} / ${r.targets}</td><td>${r.fa} / ${r.nonTargets}</td><td>${r.mrt} ms</td></tr>`).join('');
+
+  const acc = r => r.targets + r.nonTargets > 0 ? Math.round(100 * (r.hits + (r.nonTargets - r.fa)) / (r.targets + r.nonTargets)) : 0;
+  $('bars').innerHTML = rows.map((r, i) =>
+    `<div class="barrow"><div>${i ? 'Varied' : 'Consistent'} — accuracy</div><div class="bartrack"><div class="barfill" style="width:${acc(r)}%"></div></div><div>${acc(r)}%</div></div>` +
+    `<div class="barrow"><div>${i ? 'Varied' : 'Consistent'} — false alarms</div><div class="bartrack"><div class="barfill fa" style="width:${r.nonTargets ? Math.round(100*r.fa/r.nonTargets) : 0}%"></div></div><div>${r.fa} / ${r.nonTargets}</div></div>`).join('');
+
+  const cmAcc = acc(rows[0]), vmAcc = acc(rows[1]);
+  $('headline').textContent = `Consistent ${cmAcc}%  vs  Varied ${vmAcc}%`;
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> In the consistent-mapping block every target is a digit and every distractor a letter,
+     so the same characters always play the same role. In the varied-mapping block targets and distractors are
+     drawn from the same pool, so a character's role changes from trial to trial. ` +
+    (cmAcc > vmAcc
+      ? `Your consistent block came out ahead, as in the classic study. `
+      : `Your two blocks came out similar here — with only 6 trials each that is common; the effect shows up over runs of hundreds of trials. `) +
+    `<br><br><b>The paradigm (Schneider &amp; Shiffrin, 1977).</b> Hold 1–4 characters in memory, then monitor a
+     rapid series of 4-character frames and detect whether a memory-set item appears in any frame. With
+     <b>consistent mapping</b> and practice, performance climbs (in the original study from about 55% to 90%
+     correct over ~600–900 trials) and the search becomes <b>automatic</b> — fast, low-cost, and hard to
+     suppress. With <b>varied mapping</b> the same amount of practice buys much less: the task stays
+     <b>controlled</b> and effortful, because the rule keeps changing. This is why automaticity is said to be
+     <i>earned</i> by consistent practice — and why it collapses when the mapping changes.`;
+}
+</script>
+</body>
+</html>
