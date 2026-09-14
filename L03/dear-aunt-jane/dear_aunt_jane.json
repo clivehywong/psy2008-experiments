@@ -9,42 +9,54 @@
       "voice": "English_Trustworth_Man",
       "word": "Dear",
       "slot": 0,
-      "onset": 0.7
+      "onset": 0.7,
+      "boost": null,
+      "seconds": 0.56
     },
     {
       "ear": "left",
       "voice": "English_Trustworth_Man",
       "word": "seven",
       "slot": 1,
-      "onset": 1.9
+      "onset": 1.9,
+      "boost": null,
+      "seconds": 0.75
     },
     {
       "ear": "left",
       "voice": "English_Trustworth_Man",
       "word": "Jane",
       "slot": 2,
-      "onset": 3.1
+      "onset": 3.1,
+      "boost": "English",
+      "seconds": 0.63
     },
     {
       "ear": "right",
       "voice": "English_Graceful_Lady",
       "word": "nine",
       "slot": 0,
-      "onset": 0.7
+      "onset": 0.7,
+      "boost": null,
+      "seconds": 0.62
     },
     {
       "ear": "right",
       "voice": "English_Graceful_Lady",
       "word": "Aunt",
       "slot": 1,
-      "onset": 1.9
+      "onset": 1.9,
+      "boost": null,
+      "seconds": 0.65
     },
     {
       "ear": "right",
       "voice": "English_Graceful_Lady",
       "word": "six",
       "slot": 2,
-      "onset": 3.1
+      "onset": 3.1,
+      "boost": null,
+      "seconds": 0.71
     }
   ]
 }
