@@ -77,7 +77,7 @@
 <script>
 const DELAYS = [3, 9, 18];
 const TRIALS_PER = 3;
-const SHOW_MS = 2500;
+const SHOW_MS = 2500, GET_READY_MS = 1700;
 const CONS = 'BCDFGHJKLMNPQRSTVWXZ'.split('');
 const SEQ = [];
 for (let k = 0; k < TRIALS_PER; k++) DELAYS.forEach(d => SEQ.push(d));
@@ -97,13 +97,17 @@ function nextTrial(){
   while (trigram.length < 3) trigram.push(pool.splice(rnd(pool.length), 1)[0]);
   number = String(100 + rnd(900));
   $('progress').textContent = `Trial ${i + 1} / ${SEQ.length}`;
-  $('taskline').textContent = 'Memorise the letters — then count backwards by 3!';
-  $('letters').textContent = trigram.join(' ') + '   ' + number;
+  $('taskline').textContent = 'Get ready…';
+  $('letters').textContent = '';
   $('count').textContent = '';
   $('clock').textContent = '';
   $('answerBox').classList.add('hidden');
   $('answer').value = '';
-  setTimeout(countPhase, SHOW_MS);
+  setTimeout(() => {
+    $('taskline').textContent = 'Memorise the letters — then count backwards by 3!';
+    $('letters').textContent = trigram.join(' ') + '   ' + number;
+    setTimeout(countPhase, SHOW_MS);
+  }, GET_READY_MS);
 }
 
 function countPhase(){
@@ -115,7 +119,7 @@ function countPhase(){
   const iv = setInterval(() => {
     left--;
     $('clock').textContent = left > 0 ? `Counting… ${left}s` : 'Stop counting!';
-    if (left <= 0) { clearInterval(iv); setTimeout(askRecall, 250); }
+    if (left <= 0) { clearInterval(iv); setTimeout(askRecall, 600); }
   }, 1000);
 }
 
@@ -132,7 +136,7 @@ function submit(){
   const hit = new Set(typed.filter(c => trigram.includes(c)));
   data.push({ delay, n: hit.size });
   i++;
-  setTimeout(() => { $('answerBox').classList.add('hidden'); nextTrial(); }, 300);
+  setTimeout(() => { $('answerBox').classList.add('hidden'); nextTrial(); }, 600);
 }
 $('submit').onclick = submit;
 $('answer').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });

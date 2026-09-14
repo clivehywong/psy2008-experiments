@@ -81,6 +81,7 @@ const RELATED = [['bread','wheat'],['doctor','nurse'],['table','chair'],['salt',
 const UNRELATED = [['candle','pillow'],['tunnel','banana'],['wallet','lizard'],['copper','meadow'],['basket','violin'],
                    ['anchor','ceiling'],['marble','hunter'],['puzzle','helmet'],['valley','orange'],['garden','train'],
                    ['kettle','carrot'],['ladder','mountain'],['jacket','island'],['mirror','bottle'],['window','carpet'],['thunder','sandal']];
+const GET_READY_MS = 1300;
 const NONWORDS = ['bloog','fundt','glurb','bleem','drate','flarn','crosh','plend','shirn','ticle'];
 
 const SEQ = [];
@@ -110,13 +111,14 @@ function nextTrial(){
   const t = SEQ[i];
   $('status').textContent = `Trial ${i + 1} / ${SEQ.length}`;
   $('w1').textContent = ''; $('w2').textContent = '';
+  accepting = false;
   setTimeout(() => {
     $('w1').textContent = t.pair[0];
     $('w2').textContent = t.pair[1];
     t0 = performance.now();
     accepting = true;
     rtTimer = setTimeout(miss, 4000);
-  }, 600);
+  }, GET_READY_MS);
 }
 
 function answer(ans){

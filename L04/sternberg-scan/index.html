@@ -51,7 +51,7 @@
      appears — decide as fast as you can whether it was <b>in the set</b> or <b>not in the set</b>.</p>
   <div class="banner"><b>Keys:</b> <b>J</b> = present (in the set), <b>F</b> = absent (not in the set) — or tap the buttons.
      Answer fast: we are timing you.</div>
-  <p><b>30 trials</b> · about 3 minutes. Sets are the same size within a trial, and vary from 1 to 6 items.</p>
+  <p><b>30 trials</b> · about 3–4 minutes. Sets are the same size within a trial, and vary from 1 to 6 items.</p>
   <button class="btn" onclick="startTask()">Start</button>
 </div>
 
@@ -78,7 +78,7 @@
 
 <script>
 const SET_SIZES = [1, 2, 3, 4, 6], TRIALS_PER = 6;      // 30 trials (3 present + 3 absent each)
-const SET_ITEM_MS = 800, READY_MS = 500, MAX_RT = 3000, ITI = 600;
+const SET_ITEM_MS = 800, READY_MS = 500, MAX_RT = 3000, ITI = 700, GET_READY_MS = 1700;
 const SEQ = [];
 SET_SIZES.forEach(n => { for (let k = 0; k < TRIALS_PER; k++) SEQ.push(n); });
 SEQ.sort(() => Math.random() - 0.5);
@@ -109,11 +109,15 @@ function next(){
   if (isPresent) probe = memSet[rnd(n)];
   else { const others = [0,1,2,3,4,5,6,7,8,9].filter(d => !memSet.includes(d)); probe = others[rnd(others.length)]; }
   $('status').textContent = `Trial ${i + 1} / ${SEQ.length}`;
-  $('phase').textContent = `Memorise these ${n} digit${n > 1 ? 's' : ''}`;
-  $('set').textContent = memSet.join(' ');
+  $('phase').textContent = 'Get ready…';
+  $('set').textContent = '';
   $('probe').textContent = '';
   accepting = false;
-  setTimeout(() => showProbe(), n * SET_ITEM_MS + READY_MS);
+  setTimeout(() => {
+    $('phase').textContent = `Memorise these ${n} digit${n > 1 ? 's' : ''}`;
+    $('set').textContent = memSet.join(' ');
+    setTimeout(() => showProbe(), n * SET_ITEM_MS + READY_MS);
+  }, GET_READY_MS);
 }
 
 function showProbe(){

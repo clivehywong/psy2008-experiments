@@ -81,7 +81,7 @@
 </div>
 
 <script>
-const LIST_LEN = 20, WORD_MS = 1100, GAP_MS = 250, DELAY_S = 30;
+const LIST_LEN = 20, WORD_MS = 1100, GAP_MS = 250, DELAY_S = 30, GET_READY_MS = 1700;
 const POOL_A = ['garden','pencil','coffee','window','shoulder','forest','bottle','market','camera','silver','island','jacket','morning','engine','rabbit','carpet','saddle','mirror','ladder','kettle'];
 const POOL_B = ['orange','helmet','valley','candle','pillow','tunnel','banana','sandal','thunder','wallet','lizard','copper','meadow','basket','violin','anchor','ceiling','marble','hunter','puzzle'];
 
@@ -98,15 +98,17 @@ function beginList(){
   $('progress').textContent = `List ${phase === 'A' ? 1 : 2} of 2`;
   $('recallBox').classList.add('hidden');
   $('countdown').textContent = '';
-  $('taskline').textContent = 'Study the words — just read them, no need to do anything.';
+  $('taskline').textContent = 'Get ready — the words will start in a moment…';
   let idx = 0;
+  setTimeout(() => { $('taskline').textContent = 'Study the words — just read them, no need to do anything.'; }, GET_READY_MS);
+  const START_DELAY = GET_READY_MS + 800;      // label first, then the first word
   const step = () => {
     if (idx >= list.length) { $('word').textContent = ''; return afterList(); }
     $('word').textContent = list[idx];
     idx++;
     setTimeout(() => { $('word').textContent = ''; setTimeout(step, GAP_MS); }, WORD_MS);
   };
-  step();
+  setTimeout(step, START_DELAY);
 }
 
 function afterList(){
@@ -135,7 +137,7 @@ function scoreRecall(){
 }
 function submit(){
   const hits = scoreRecall();
-  if (phase === 'A') { dataA = hits; phase = 'B'; setTimeout(beginList, 600); }
+  if (phase === 'A') { dataA = hits; phase = 'B'; setTimeout(beginList, 900); }
   else { dataB = hits; setTimeout(finish, 400); }
 }
 $('submit').onclick = submit;

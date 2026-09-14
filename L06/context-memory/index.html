@@ -84,7 +84,7 @@
 </div>
 
 <script>
-const LIST_LEN = 10, WORD_MS = 1200, GAP_MS = 250;
+const LIST_LEN = 10, WORD_MS = 1200, GAP_MS = 250, GET_READY_MS = 1700;
 const LISTS = [
   ['garden','pencil','coffee','window','shoulder','forest','bottle','market','camera','island'],
   ['orange','helmet','valley','candle','pillow','tunnel','banana','sandal','thunder','wallet'],
@@ -116,17 +116,17 @@ function beginList(){
   list = LISTS[b].slice();
   for (let k = list.length - 1; k > 0; k--) { const j = rnd(k + 1); [list[k], list[j]] = [list[j], list[k]]; }
   $('progress').textContent = `List ${b + 1} of 4`;
-  $('taskline').textContent = 'Study these words';
+  $('taskline').textContent = 'Get ready…';
   $('envLine').innerHTML = `studying in <span class="env ${plan.study}">${NAMES[plan.study]}</span>`;
   $('recallBox').classList.add('hidden');
-  let idx = 0;
+  setTimeout(() => { $('taskline').textContent = 'Study these words'; }, GET_READY_MS);
   const step = () => {
     if (idx >= list.length) { $('word').textContent = ''; return afterList(); }
     $('word').textContent = list[idx];
     idx++;
     setTimeout(() => { $('word').textContent = ''; setTimeout(step, GAP_MS); }, WORD_MS);
   };
-  step();
+  setTimeout(step, GET_READY_MS + 800);      // label first, then the first word
 }
 
 function afterList(){
@@ -146,7 +146,7 @@ function submit(){
   const hits = list.filter(w => typed.includes(w)).length;
   data.push({ same: plan.study === plan.test, hits, of: list.length });
   b++;
-  if (b < PLAN.length) setTimeout(beginList, 500);
+  if (b < PLAN.length) setTimeout(beginList, 900);
   else setTimeout(finish, 500);
 }
 $('submit').onclick = submit;
