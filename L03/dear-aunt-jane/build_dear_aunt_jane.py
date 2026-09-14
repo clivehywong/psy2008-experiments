@@ -26,6 +26,7 @@ from gen_speech_poe import synth
 
 MALE_VOICE   = os.environ.get("MALE_VOICE", "English_Trustworth_Man")
 FEMALE_VOICE = os.environ.get("FEMALE_VOICE", "English_Graceful_Lady")
+LANG_BOOST = os.environ.get("LANG_BOOST", "English")   # forces English pronunciation (J in "Jane")
 SLOT   = float(os.environ.get("SLOT", "1.20"))    # seconds per simultaneous pair
 LEAD   = float(os.environ.get("LEAD", "0.70"))    # silence before the first pair
 TAIL   = 1.2
@@ -40,7 +41,7 @@ WORD_RMS_DB = float(os.environ.get("WORD_RMS_DB", "-18"))   # per-word loudness 
 
 def say_word(word, voice, tag):
     mp3 = os.path.join(HERE, f"_{tag}.mp3")
-    synth(word, mp3, voice, 1.0)
+    synth(word, mp3, voice, 1.0, language_boost=LANG_BOOST)
     raw = os.path.join(HERE, f"_{tag}.raw")
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", mp3, "-ac", "1", "-ar", str(SR),
                     "-f", "s16le", raw], check=True)
