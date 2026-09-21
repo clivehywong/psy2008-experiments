@@ -35,12 +35,9 @@
   table { margin: 14px auto; border-collapse: collapse; font-size: 16px; width: 100%; }
   td, th { padding: 8px 12px; border: 1px solid #334; text-align: left; }
   th { color: #e94560; }
-  .bars { margin: 12px 0; }
-  .barrow { display: grid; grid-template-columns: 90px 1fr 80px; gap: 10px; align-items: center; margin: 6px 0; }
-  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
-  .barfill { height: 100%; border-radius: 6px; background: #2ecc71; }
-  .barfill.abs { background: #6c8ebf; }
   .big { font-size: 24px; color: #e94560; font-weight: bold; margin: 8px 0; }
+  #plot { width: 100%; height: 320px; display: block; margin: 8px 0 2px; background: #0f1730; border-radius: 10px; }
+  .caption { font-size: 13px; color: #9ab; margin: 4px 0 0; }
 </style>
 </head>
 <body>
@@ -70,7 +67,8 @@
   <h1>Your results</h1>
   <div class="big" id="headline"></div>
   <table id="resTable"></table>
-  <div class="bars" id="bars"></div>
+  <canvas id="plot"></canvas>
+  <p class="caption" id="plotCaption"></p>
   <div class="banner" id="debrief"></div>
   <p class="muted">Run it again — RT slopes need a decent number of trials per set size to be stable.</p>
   <button class="btn sec" onclick="location.reload()">Run again</button>
@@ -150,6 +148,109 @@ function slope(pts){                                     // least-squares slope 
   const sxx = pts.reduce((s,p)=>s+p[0]*p[0],0), sxy = pts.reduce((s,p)=>s+p[0]*p[1],0);
   return (N * sxy - sx * sy) / Math.max(1e-9, N * sxx - sx * sx);
 }
+function fit(pts){                                       // {m, b} least-squares line through [x,y]
+  const m = slope(pts);
+  const mx = pts.reduce((s,p)=>s+p[0],0)/pts.length, my = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+  return { m, b: my - m * mx };
+}
+
+let lastRows = null;
+function drawPlot(rows){
+  const cv = $('plot'), dpr = window.devicePixelRatio || 1;
+  const cssW = Math.max(320, cv.clientWidth || 640), cssH = cv.clientHeight || 320;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, cssW, cssH);
+
+  const pad = { l: 62, r: 24, t: 20, b: 48 };
+  const W = cssW - pad.l - pad.r, H = cssH - pad.t - pad.b;
+  const series = [
+    { key: 'yes', label: 'present', color: '#7fd1ff', shape: 'circle' },
+    { key: 'no',  label: 'absent',  color: '#f5a742', shape: 'square' }
+  ];
+
+  const xs = rows.map(r => r.S);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const all = [];
+  series.forEach(s => rows.forEach(r => { if (r[s.key] > 0) all.push(r[s.key]); }));
+  if (all.length < 2) {
+    g.fillStyle = '#9ab'; g.font = '14px sans-serif';
+    g.textAlign = 'left'; g.textBaseline = 'top';
+    g.fillText('Not enough correct trials to fit a slope.', pad.l, pad.t + 24);
+    const c = $('plotCaption');
+    if (c) c.textContent = 'Too few correct trials at different set sizes to plot a slope — run the task again.';
+    return;
+  }
+  let yMin = Math.min(...all), yMax = Math.max(...all);
+  const yPad = Math.max(50, (yMax - yMin) * 0.2);
+  yMin = Math.max(0, yMin - yPad); yMax = yMax + yPad;
+
+  const X = v => pad.l + (xMax === xMin ? 0.5 : (v - xMin) / (xMax - xMin)) * W;
+  const Y = v => pad.t + H - (v - yMin) / (yMax - yMin) * H;
+
+  // gridlines at each set size + y ticks
+  g.font = '12px sans-serif';
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  const ticks = 5;
+  for (let t = 0; t <= ticks; t++) {
+    const val = yMin + (yMax - yMin) * t / ticks, y = Y(val);
+    g.strokeStyle = 'rgba(120,140,180,.22)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(pad.l, y); g.lineTo(pad.l + W, y); g.stroke();
+    g.fillStyle = '#9ab'; g.fillText(Math.round(val), pad.l - 8, y);
+  }
+  xs.forEach(v => {
+    g.strokeStyle = 'rgba(120,140,180,.12)';
+    g.beginPath(); g.moveTo(X(v), pad.t); g.lineTo(X(v), pad.t + H); g.stroke();
+    g.fillStyle = '#9ab'; g.textAlign = 'center'; g.textBaseline = 'top';
+    g.fillText(v, X(v), pad.t + H + 8);
+    g.textAlign = 'right'; g.textBaseline = 'middle';
+  });
+
+  // axes
+  g.strokeStyle = '#5a6a90'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(pad.l, pad.t); g.lineTo(pad.l, pad.t + H); g.lineTo(pad.l + W, pad.t + H); g.stroke();
+  g.fillStyle = '#ccd'; g.font = '13px sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  g.fillText('Memory-set size (items)', pad.l + W / 2, pad.t + H + 24);
+  g.save(); g.translate(16, pad.t + H / 2); g.rotate(-Math.PI / 2);
+  g.textBaseline = 'middle'; g.fillText('Mean RT (ms)', 0, 0); g.restore();
+
+  // series: regression line + points (legend/slopes go in the HTML caption)
+  const slopes = {};
+  series.forEach(s => {
+    const pts = rows.filter(r => r[s.key] > 0).map(r => [r.S, r[s.key]]);
+    if (!pts.length) return;
+    if (pts.length > 1) {
+      const f = fit(pts);
+      slopes[s.key] = Math.round(f.m);
+      g.strokeStyle = s.color; g.lineWidth = 2; g.setLineDash([6, 4]); g.globalAlpha = 0.85;
+      g.beginPath();
+      g.moveTo(X(xMin), Y(f.m * xMin + f.b)); g.lineTo(X(xMax), Y(f.m * xMax + f.b));
+      g.stroke();
+      g.setLineDash([]); g.globalAlpha = 1;
+    }
+    pts.forEach(p => {
+      const px = X(p[0]), py = Y(p[1]);
+      g.fillStyle = s.color;
+      if (s.shape === 'circle') { g.beginPath(); g.arc(px, py, 5, 0, Math.PI * 2); g.fill(); }
+      else g.fillRect(px - 4.5, py - 4.5, 9, 9);
+      g.strokeStyle = '#0f1730'; g.lineWidth = 1.5;
+      if (s.shape === 'circle') { g.beginPath(); g.arc(px, py, 5, 0, Math.PI * 2); g.stroke(); }
+      else g.strokeRect(px - 4.5, py - 4.5, 9, 9);
+    });
+  });
+
+  const cap = $('plotCaption');
+  if (cap) {
+    const swatch = (c, sq) => `<span style="display:inline-block;width:10px;height:10px;border-radius:${sq ? '2px' : '50%'};background:${c};margin:0 4px 0 0;vertical-align:middle"></span>`;
+    const parts = series.filter(s => slopes[s.key] !== undefined).map(s =>
+      `${swatch(s.color, s.shape === 'square')}<b style="color:${s.color}">${s.label}</b>: ~${slopes[s.key]} ms/item`);
+    cap.innerHTML = 'Points = mean RT (correct trials) · dashed = least-squares fit. ' + parts.join(' &nbsp;|&nbsp; ')
+      + '.<br>Parallel slopes for present and absent are the signature of a serial exhaustive scan.';
+  }
+}
+window.addEventListener('resize', () => { if (!$('results').classList.contains('hidden') && lastRows) drawPlot(lastRows); });
 
 function finish(){
   show('results');
@@ -164,11 +265,10 @@ function finish(){
   const pts = rows.filter(r => r.rt > 0).map(r => [r.S, r.rt]);
   const sl = pts.length > 1 ? Math.round(slope(pts)) : 0;
   $('headline').textContent = `RT slope ≈ ${sl} ms per item`;
+  lastRows = rows;
+  drawPlot(rows);
   $('resTable').innerHTML = '<tr><th>Set size</th><th>Mean RT (correct)</th><th>Accuracy</th><th>RT: present</th><th>RT: absent</th></tr>' +
     rows.map(r => `<tr><td>${r.S}</td><td>${r.rt} ms</td><td>${r.acc}%</td><td>${r.yes} ms</td><td>${r.no} ms</td></tr>`).join('');
-  const max = Math.max(...rows.map(r => r.rt), 1);
-  $('bars').innerHTML = rows.map(r =>
-    `<div class="barrow"><div>${r.S} items</div><div class="bartrack"><div class="barfill" style="width:${Math.round(100*r.rt/max)}%"></div></div><div>${r.rt} ms</div></div>`).join('');
   $('debrief').innerHTML =
     `<b>What this shows.</b> RT rises with the size of the memory set — roughly a fixed cost <i>per item</i>
      (your slope is above). If you, like most people, show the same slope for "present" and "absent" responses,
