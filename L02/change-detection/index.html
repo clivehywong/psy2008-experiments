@@ -54,7 +54,7 @@
 
 <div id="panel">
   <h1>Spot the Change</h1>
-  <p class="note">A 3D scene flickers: original image → grey mask → changed image → grey mask… Click the object that changes.</p>
+  <p class="note">A 3D scene flickers: original image → grey mask → changed image → grey mask… Click the object that changes. No time limit — the scene keeps flickering until you decide.</p>
 
   <h2>Task</h2>
   <div class="row">
@@ -108,7 +108,7 @@ let currentSceneIdx = 0;
 let sceneGroup = null, targetObject = null, targetName = '';
 let stateA = true; // currently showing A or B configuration
 let cycle = 'a'; // 'a' | 'mask' | 'b'
-let flickerTimer = null, roundTimer = null;
+let flickerTimer = null, tickTimer = null;
 let startTime = 0, solved = false;
 let results = [];
 let raycaster = new THREE.Raycaster();
@@ -117,7 +117,6 @@ let taskCameraPos = new THREE.Vector3();
 let taskTarget = new THREE.Vector3();
 let currentZoom = 1.0;
 
-const MAX_MS = 30000;
 const SCENES = [];
 
 // ---------- Procedural helpers ----------
@@ -386,6 +385,10 @@ function onResize() {
 }
 
 function loadScene(idx) {
+  // Stop any in-flight flicker/timer so an idle scene never keeps toggling
+  solved = true;
+  clearTimeout(flickerTimer);
+  clearInterval(tickTimer);
   if (sceneGroup) scene.remove(sceneGroup);
   currentSceneIdx = idx;
   const builder = SCENES[idx];
@@ -448,25 +451,33 @@ function nextPhase() {
   }
 }
 
-function startRound() {
+function updateElapsed() {
   if (solved) return;
+  const s = ((performance.now() - startTime) / 1000).toFixed(1);
+  document.getElementById('status').textContent =
+    `Scene ${currentSceneIdx + 1}/3 — find the change · ${s} s`;
+}
+
+function startRound() {
+  clearTimeout(flickerTimer);
+  clearInterval(tickTimer);
   solved = false;
   setConfigA();
   showMask(false);
   cycle = 'a';
   document.getElementById('btn-start').textContent = 'Restart';
   document.getElementById('feedback').textContent = 'Click the object that changes.';
-  document.getElementById('status').textContent = `Scene ${currentSceneIdx + 1}/3 — find the change`;
+  document.getElementById('status').textContent = `Scene ${currentSceneIdx + 1}/3 — find the change · 0.0 s`;
   startTime = performance.now();
   flickerTimer = setTimeout(nextPhase, getImgMs());
-  roundTimer = setTimeout(() => endRound(false), MAX_MS);
+  tickTimer = setInterval(updateElapsed, 100);
 }
 
 function endRound(found) {
   if (solved) return;
   solved = true;
   clearTimeout(flickerTimer);
-  clearTimeout(roundTimer);
+  clearInterval(tickTimer);
   showMask(false);
   const rt = Math.round(performance.now() - startTime);
   results.push(found ? rt : null);
@@ -474,8 +485,8 @@ function endRound(found) {
     document.getElementById('feedback').textContent = `Found in ${(rt/1000).toFixed(1)} s ✓`;
     document.getElementById('status').textContent = 'Found — revealing scene for 2 s…';
   } else {
-    document.getElementById('feedback').textContent = 'Time up. The change is highlighted now.';
-    document.getElementById('status').textContent = 'Time up — revealing change';
+    document.getElementById('feedback').textContent = 'Revealed. The change is highlighted now.';
+    document.getElementById('status').textContent = 'Revealed — here is the change';
   }
   // Reveal B state so the target is visible
   setConfigB();
