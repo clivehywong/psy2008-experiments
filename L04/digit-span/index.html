@@ -79,8 +79,18 @@ function start() {
   nextRound();
 }
 
+function makeSeq(n) {
+  const s = [];
+  for (let i = 0; i < n; i++) {
+    let d = Math.floor(Math.random()*10);
+    while (i > 0 && d === s[i-1]) d = Math.floor(Math.random()*10);
+    s.push(d);
+  }
+  return s;
+}
+
 function nextRound() {
-  seq = Array.from({length: len}, () => Math.floor(Math.random()*10));
+  seq = makeSeq(len);
   idx = 0; el('answer').classList.add('hidden'); el('pad').classList.add('hidden');
   el('status').textContent = `Length ${len} — get ready…`;
   el('digits').textContent = '•';
