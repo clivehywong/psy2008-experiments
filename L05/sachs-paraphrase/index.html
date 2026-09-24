@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meaning Survives, Wording Dies (Sachs, 1967) — PSY2008</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; color: #eee;
+         min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+         user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .card { background: #16213e; border-radius: 16px; padding: 32px; max-width: 720px; width: 100%;
+          box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card.center { text-align: center; }
+  h1 { font-size: 24px; margin-bottom: 6px; color: #e94560; }
+  .sub { font-size: 14px; color: #9ab; margin-bottom: 12px; }
+  h2 { font-size: 18px; margin: 16px 0 6px; }
+  p { margin: 10px 0; line-height: 1.55; font-size: 16px; color: #dde; }
+  ul { margin: 10px 0 10px 22px; line-height: 1.6; color: #dde; }
+  .btn { display: inline-block; margin-top: 18px; padding: 14px 36px; font-size: 18px; font-weight: bold;
+         color: #fff; background: #e94560; border: none; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+  .btn:active { transform: scale(.97); }
+  .btn.sec { background: #0f3460; font-size: 16px; padding: 12px 24px; }
+  .hidden { display: none !important; }
+  .muted { color: #9ab; font-size: 14px; }
+  .banner { background: #0f3460; border-left: 4px solid #e94560; padding: 12px 16px; border-radius: 8px;
+            margin: 14px 0; text-align: left; font-size: 15px; }
+  .passage { text-align: left; background: #0f1730; border-radius: 10px; padding: 18px 20px; margin: 14px 0;
+             border: 1px solid #223; }
+  .passage p { margin: 8px 0; font-size: 17px; line-height: 1.7; color: #eef; }
+  #sentence { font-size: 23px; line-height: 1.5; color: #f5d142; min-height: 110px; margin: 18px 0 6px;
+              display: flex; align-items: center; justify-content: center; padding: 0 8px; }
+  #question { font-size: 17px; color: #dde; margin-bottom: 4px; }
+  #countdown { font-size: 40px; font-weight: bold; color: #7fd1ff; font-family: 'Courier New', monospace; min-height: 50px; }
+  #keys { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .key { padding: 20px; font-size: 20px; font-weight: bold; border: 3px solid #334; border-radius: 10px;
+         background: #16213e; cursor: pointer; color: #eee; touch-action: manipulation; }
+  .key:active { transform: scale(.96); }
+  .key.y { border-color: #2e7d4f; }
+  .key.n { border-color: #7d3030; }
+  table { margin: 14px auto; border-collapse: collapse; font-size: 15px; width: 100%; }
+  td, th { padding: 8px 10px; border: 1px solid #334; text-align: left; }
+  th { color: #e94560; }
+  .bars { margin: 12px 0; }
+  .barrow { display: grid; grid-template-columns: 120px 1fr 70px; gap: 10px; align-items: center; margin: 6px 0; }
+  .bartrack { background: #0f1730; border-radius: 6px; height: 18px; }
+  .barfill { height: 100%; border-radius: 6px; background: #e94560; }
+  .barfill.imm { background: #6c8ebf; }
+  .barfill.del { background: #e94560; }
+  .big { font-size: 21px; color: #e94560; font-weight: bold; margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div class="card center" id="intro">
+  <h1>Meaning Survives, Wording Dies</h1>
+  <div class="sub">Sachs (1967) — the paraphrase test</div>
+  <p>You will read a short passage. Then you will see sentences one at a time and decide whether each one appeared in
+     the passage <b>word for word</b>.</p>
+  <div class="banner">Read the passage once, just to <b>understand it</b> — there is nothing to memorise. After the
+     first round of sentences you will <b>count backwards for 30 seconds</b>, then judge a second round.</div>
+  <p><b>12 sentences · about 4 minutes.</b> Answer with <b>Y</b> (yes) / <b>N</b> (no), or tap the buttons.</p>
+  <button class="btn" onclick="start()">Start</button>
+</div>
+
+<div class="card hidden" id="passageCard">
+  <h1>Read the passage</h1>
+  <div class="sub">Goldstein, Ch. 6 (the passage Sachs used in class demonstrations)</div>
+  <div class="passage" id="passage"></div>
+  <div class="center"><button class="btn" onclick="beginTest()">I've read it — start the sentences</button></div>
+</div>
+
+<div class="card center hidden" id="run">
+  <h2 id="taskline">Get ready…</h2>
+  <div id="sentence"></div>
+  <div id="question"></div>
+  <div id="keys" class="hidden">
+    <div class="key y" data-ans="yes">YES (Y)</div>
+    <div class="key n" data-ans="no">NO (N)</div>
+  </div>
+  <p class="muted" id="progress"></p>
+</div>
+
+<div class="card center hidden" id="delay">
+  <h1>The passage is gone</h1>
+  <p>Count backwards by 3s from 100 — <b>out loud</b> — until the second round begins.</p>
+  <div id="countdown">starting from 100 …</div>
+</div>
+
+<div class="card hidden" id="results">
+  <h1>Your results</h1>
+  <div class="big" id="headline"></div>
+  <table id="resTable"></table>
+  <div class="bars" id="bars"></div>
+  <div class="banner" id="debrief"></div>
+  <button class="btn sec" onclick="location.reload()">Run again</button>
+</div>
+
+<script>
+const DELAY_S = 30, GET_READY_MS = 1200, ISI_MS = 350;
+const PASSAGE = [
+  "There is an interesting story about the telescope.",
+  "In Holland, a man named Lippershey was an eyeglass maker.",
+  "One day his children were playing with some lenses.",
+  "They discovered that things seemed very close if two lenses were held about a foot apart.",
+  "Lippershey began experimenting, and his 'spyglass' attracted much attention.",
+  "He sent a letter about it to Galileo, the great Italian scientist.",
+  "Galileo at once realized the importance of the discovery and set about building an instrument of his own."
+];
+
+/* each critical sentence is tested once in block 1 (immediate) and once in block 2 (after the 30 s delay),
+   on a DIFFERENT passage sentence, so the design is a clean 3 variants x 2 delays within-subject.
+   "wording" = meaning preserved, surface form changed (Sachs' syntactic/formal change)
+   "meaning" = the meaning itself changed (Sachs' semantic change) */
+const ITEMS = [
+  // ---- Block 1: immediate ----
+  { text: "There is an interesting story about the telescope.",
+    kind: "identical", block: 1, correct: "yes" },
+  { text: "His children were playing with some lenses one day.",
+    kind: "wording", block: 1, correct: "no" },
+  { text: "Lippershey began experimenting, but hardly anyone paid attention to his 'spyglass'.",
+    kind: "meaning", block: 1, correct: "no" },
+  { text: "Lippershey named his invention the telescope.",
+    kind: "filler", block: 1, correct: "no" },
+  { text: "The lenses were made of polished glass from Italy.",
+    kind: "filler", block: 1, correct: "no" },
+  { text: "Lippershey's children were forbidden to touch the lenses.",
+    kind: "filler", block: 1, correct: "no" },
+  // ---- Block 2: after the 30 s count-back ----
+  { text: "In Holland, a man named Lippershey was an eyeglass maker.",
+    kind: "identical", block: 2, correct: "yes" },
+  { text: "Galileo immediately saw how important the discovery was, and began building an instrument of his own.",
+    kind: "wording", block: 2, correct: "no" },
+  { text: "Galileo, the great Italian scientist, sent him a letter about it.",
+    kind: "meaning", block: 2, correct: "no" },
+  { text: "The spyglass was later sold to a wealthy merchant.",
+    kind: "filler", block: 2, correct: "no" },
+  { text: "Galileo used the instrument to study the moons of Jupiter.",
+    kind: "filler", block: 2, correct: "no" },
+  { text: "A letter about the discovery was sent to the king of Holland.",
+    kind: "filler", block: 2, correct: "no" }
+];
+
+let order = [], idx = 0, current = null, accepting = false;
+const $ = id => document.getElementById(id);
+function show(id){ ['intro','passageCard','run','delay','results'].forEach(s=>$(s).classList.add('hidden')); $(id).classList.remove('hidden'); }
+const shuffle = a => { for (let k = a.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [a[k], a[j]] = [a[j], a[k]]; } return a; };
+
+function start(){
+  $('passage').innerHTML = PASSAGE.map(s => `<p>${s}</p>`).join('');
+  show('passageCard');
+}
+
+function beginTest(){
+  const b1 = shuffle(ITEMS.filter(it => it.block === 1));
+  const b2 = shuffle(ITEMS.filter(it => it.block === 2));
+  order = b1.concat(b2);
+  order.forEach(it => { it.user = null; });
+  idx = 0;
+  show('run');
+  leadIn();
+}
+
+function leadIn(){
+  current = order[idx];
+  $('sentence').textContent = '';
+  $('question').textContent = '';
+  $('keys').classList.add('hidden');
+  $('taskline').textContent = 'Get ready…';
+  $('progress').textContent = `Round ${current.block} of 2 · sentence ${roundNum()} of 6`;
+  accepting = false;
+  setTimeout(() => {
+    $('taskline').textContent = current.block === 2 ? 'Round 2 — was this in the passage?' : 'Was this in the passage?';
+    $('question').textContent = 'Did this sentence appear in the passage, word for word?';
+    $('sentence').textContent = current.text;
+    $('keys').classList.remove('hidden');
+    accepting = true;
+  }, GET_READY_MS);
+}
+
+function roundNum(){
+  const blockItems = order.filter(it => it.block === current.block);
+  return blockItems.indexOf(current) + 1;
+}
+
+function answer(ans){
+  if (!accepting || !current) return;
+  accepting = false;
+  current.user = ans;
+  idx++;
+  $('keys').classList.add('hidden');
+  $('question').textContent = '';
+  setTimeout(() => {
+    if (idx === 6) return delayPhase();
+    if (idx >= order.length) return finish();
+    leadIn();
+  }, ISI_MS);
+}
+
+function delayPhase(){
+  $('sentence').textContent = '';
+  show('delay');
+  let left = DELAY_S;
+  $('countdown').textContent = `counting… ${left}s`;
+  const iv = setInterval(() => {
+    left--;
+    $('countdown').textContent = left > 0 ? `counting… ${left}s` : 'Stop!';
+    if (left <= 0) { clearInterval(iv); setTimeout(() => { show('run'); leadIn(); }, 600); }
+  }, 1000);
+}
+
+document.addEventListener('keydown', e => {
+  if (!accepting) return;
+  if (e.key === 'y' || e.key === 'Y') answer('yes');
+  if (e.key === 'n' || e.key === 'N') answer('no');
+});
+document.querySelectorAll('#keys .key').forEach(el => {
+  const go = e => { if (e.cancelable) e.preventDefault(); answer(el.dataset.ans); };
+  if (window.PointerEvent) el.addEventListener('pointerdown', go); else el.addEventListener('click', go);
+});
+
+function item(kind, block){ return ITEMS.find(it => it.kind === kind && it.block === block); }
+function accepted(kind, block){ const it = item(kind, block); return it.user === 'yes'; }
+function detected(kind, block){ const it = item(kind, block); return it.user === 'no'; }
+function fillerHits(block){ return ITEMS.filter(it => it.kind === 'filler' && it.block === block && it.user === 'yes').length; }
+
+function pct(x){ return x ? 100 : 0; }
+
+function finish(){
+  show('results');
+  const wid1 = detected('wording', 1), wid2 = detected('wording', 2);
+  const mid1 = detected('meaning', 1), mid2 = detected('meaning', 2);
+  const id1  = accepted('identical', 1), id2 = accepted('identical', 2);
+  const f1 = fillerHits(1), f2 = fillerHits(2);
+
+  if (wid1 && !wid2) {
+    $('headline').textContent = 'You caught the rewording at once — but after 30 seconds it slipped through as the original. Meaning survived; the words did not.';
+  } else if (!wid1 && !wid2) {
+    $('headline').textContent = 'Even the immediate rewording felt like the passage — the exact words fade fast.';
+  } else if (wid1 && wid2) {
+    $('headline').textContent = 'You caught every rewording. Most people miss the reworded sentence after the delay — check the class result.';
+  } else {
+    $('headline').textContent = 'You missed the early rewording but caught the later one — noisy, but rerun or compare across the class.';
+  }
+
+  $('resTable').innerHTML =
+    '<tr><th>Sentence type</th><th>Round 1 (immediate)</th><th>Round 2 (after 30 s)</th></tr>' +
+    `<tr><td>Identical to the passage — accepted as original</td><td>${id1 ? 'yes' : 'no'}</td><td>${id2 ? 'yes' : 'no'}</td></tr>` +
+    `<tr><td>Wording changed, meaning kept — spotted the change</td><td>${wid1 ? 'yes' : 'no'}</td><td>${wid2 ? 'yes' : 'no'}</td></tr>` +
+    `<tr><td>Meaning changed — spotted the change</td><td>${mid1 ? 'yes' : 'no'}</td><td>${mid2 ? 'yes' : 'no'}</td></tr>` +
+    `<tr><td>New sentences (not in passage) — falsely called "original"</td><td>${f1} / 3</td><td>${f2} / 3</td></tr>`;
+
+  $('bars').innerHTML =
+    bar('Wording-change detection', pct(wid1), pct(wid2)) +
+    bar('Meaning-change detection', pct(mid1), pct(mid2)) +
+    bar('Identical accepted', pct(id1), pct(id2));
+
+  $('debrief').innerHTML =
+    `<b>What this shows.</b> You judged whether each sentence was word for word from the passage. Catching a
+     <b>rewording</b> — same meaning, different words — is easy straight after reading and much harder after only
+     30 seconds of counting. But sentences whose <b>meaning</b> changed were still caught, and true repeats still felt
+     familiar. The words were lost; the meaning stayed.<br><br>
+     <b>The study (Jacqueline Sachs, 1967).</b> People listened to a recorded passage, then judged test sentences as
+     old or new. Some were <b>identical</b> to the passage, some kept the <b>meaning but changed the wording</b>, and
+     some <b>changed the meaning</b>. Soon after, people detected the wording changes; after a delay they accepted
+     meaning-preserving paraphrases as if they were the originals — while still rejecting meaning changes and
+     accepting true repeats. Sachs concluded that long-term memory stores the <b>meaning</b> of what we read and hear,
+     not its exact surface form: <b>semantic coding</b>. It is why you remember what a friend's message <i>meant</i>,
+     not the words they used. (Goldstein, Ch. 6, uses this same telescope passage.)<br><br>
+     <b>A caveat.</b> This is a class demonstration, not a full replication: one sentence per condition, and the
+     "delay" is 30 seconds of counting rather than the longer gaps Sachs used. The effect is clearest in the
+     <b>group</b> result — compare with your classmates before drawing conclusions.`;
+
+  function bar(label, imm, del){
+    return `<div class="barrow"><div>${label}</div><div class="bartrack"><div class="barfill imm" style="width:${imm}%"></div></div><div>${imm}%</div></div>` +
+           `<div class="barrow"><div class="muted" style="font-size:12px">↳ after 30 s</div><div class="bartrack"><div class="barfill del" style="width:${del}%"></div></div><div>${del}%</div></div>`;
+  }
+}
+</script>
+</body>
+</html>

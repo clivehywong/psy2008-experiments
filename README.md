@@ -13,5 +13,8 @@ Experiments are organised by lecture folder (`L01/`, `L02/`, …).
 | L2 Perception | Spot the Change — flicker-paradigm change detection | `L02/change-detection/` |
 | L2 Perception | Apparent Motion — sequential blinks become a moving light | `L02/apparent-motion/` |
 | L2 Perception | Structure from Motion — a flat cloud of dots spins into a 3D ring | `L02/structure-from-motion/` |
+| L5 LTM Structure | Sachs (1967) — paraphrase recognition: meaning survives, wording dies | `L05/sachs-paraphrase/` |
+
+*(L3–L6 rows are being back-filled.)*
 
 Planned: realtime class dashboard (server-hosted aggregation) as a future enhancement.
